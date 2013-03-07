@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+
+import argparse
+import ebs_deploy
+import yaml
+import sys
+
+# the commands
+def main():
+    """
+    the main
+    """
+    commands = [
+        'init',
+        'list_solution_stacks'
+    ]
+
+    # setup arguments
+    parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk')
+    parser.add_argument('-c', '--config-file',      help='Configuration file', default='ebs.config')
+    parser.add_argument('-e', '--environment-name', help='The environment name')
+    parser.add_argument('-a', '--archive', 			help='The archive to deploy, must use this or the directory option')
+    parser.add_argument('-d', '--directory', 		help='The directory to deploy, must use this or archive option')
+    parser.add_argument('command',                  help='The command', choices=commands)
+
+    # parse arguments
+    args = parser.parse_args()
+
+    # make sure we have an archive or a directory
+    if not args.command or not args.config_file:
+    	parser.print_help()
+    	exit(-1)
+
+    # load config
+    f = open(args.config_file, 'r')
+    config = yaml.load(f)
+    f.close()
+
+    # create credentials
+    aws = ebs_deploy.AwsCredentials(
+        config['aws']['access_key'],
+        config['aws']['secret_key'],
+        config['aws']['region'],
+        config['aws']['bucket'],
+        config['aws']['bucket_path'])
+
+    # create helper
+    helper = ebs_deploy.EbsHelper(aws, app_name=config['app']['app_name'])
+
+    exit(getattr(sys.modules[__name__], 'cmd_'+args.command)(helper, config, args))
+
+
+def cmd_list_solution_stacks(helper, config, args):
+    """
+    Lists solution stacks
+    """
+    print("Available solution stacks")
+    for stack in helper.list_available_solution_stacks():
+        print("    "+str(stack))
+
+
+def cmd_init(helper, config, args):
+    """
+    The init command
+    """
+
+    # environment name
+    env_name = args.environment_name if args.environment_name else None
+
+    # check to see if the application exists
+    if not helper.application_exists():
+        helper.create_application(config['app'].get('description'))
+
+    # create environments
+    for env_name, env_config in config['app']['environments'].items():
+        if not helper.environment_exists(env_name):
+            option_settings = helper.parse_option_settings(env_config.get('option_settings', {}))
+            helper.create_environment(env_name,
+                solution_stack_name=env_config.get('solution_stack_name'),
+                cname_prefix=env_config.get('cname_prefix'),
+                description=env_config.get('description'),
+                option_settings=option_settings,
+                wait=True)
+
+
+    # get an archive
+    archive = args.archive if args.archive else create_archive(args.directory, args.version_label+'.zip')
+
+    # send to s3
+    debug("Uploading application archive: "+archive)
+    path = args.bucket_path if args.bucket_path else args.app_name
+    key = path+"/"+archive
+    upload_archive(aws, archive, key)
+
+    # create app version
+    debug("Creating application version")
+    create_application_version(aws, args.app_name, args.version_label, key, args.keep)
+
+    # update the version
+    debug("Updating environment to use new version")
+    update_environment(aws, args.app_name, args.env_name, args.version_label)
+
+    debug("Deployment complete")
+    exit(0)
+
+
+main()

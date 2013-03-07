@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+
+import argparse
+from cheers_ebs import create_archive, \
+	upload_archive, \
+	create_application_version, \
+	update_environment, \
+	AwsCredentials, \
+	debug
+
+
+# setup arguments
+parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk')
+parser.add_argument('-a', '--archive', 			help='The archive to deploy, must use this or the directory option')
+parser.add_argument('-d', '--directory', 		help='The directory to deploy, must use this or archive option')
+parser.add_argument('-k', '--keep', 			help='The number of versions to keep', default=10, type=int)
+parser.add_argument('-n', '--app-name',			help='The application name', required=True)
+parser.add_argument('-e', '--env-name',			help='The environment name', required=True)
+parser.add_argument('-v', '--version-label',	help='The version label', required=True)
+parser.add_argument('-b', '--bucket', 			help='The s3 bucket to store versions in', required=True)
+parser.add_argument('-bp', '--bucket-path',		help='The s3 bucket path', required=False)
+parser.add_argument('-ak', '--access-key',		help='The Amazon Access Key', required=True)
+parser.add_argument('-sk', '--secret-key',		help='The Amazon Secret Key', required=True)
+parser.add_argument('-r', '--region',			help='The Amazon region', default='us-west-2')
+
+# parse arguments
+args = parser.parse_args()
+
+# make sure we have an archive or a directory
+if not args.archive and not args.directory:
+	parser.print_help()
+	exit(-1)
+
+# create credentials
+aws = AwsCredentials(args.access_key, args.secret_key, args.region, args.bucket)
+
+# get an archive
+archive = args.archive if args.archive else create_archive(args.directory, args.version_label+'.zip')
+
+# send to s3
+debug("Uploading application archive: "+archive)
+path = args.bucket_path if args.bucket_path else args.app_name
+key = path+"/"+archive
+upload_archive(aws, archive, key)
+
+# create app version
+debug("Creating application version")
+create_application_version(aws, args.app_name, args.version_label, key, args.keep)
+
+# update the version
+debug("Updating environment to use new version")
+update_environment(aws, args.app_name, args.env_name, args.version_label)
+
+debug("Deployment complete")
+exit(0)

@@ -1,0 +1,7 @@
+# Deployed dependencies
+boto == 2.8.0
+pyyaml == 3.10
+
+# Development dependencies:
+Nose == 1.1.2
+Mock == 0.8.0
