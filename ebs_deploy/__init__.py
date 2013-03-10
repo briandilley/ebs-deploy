@@ -1,16 +1,13 @@
-
 from boto.exception import S3ResponseError
 from boto.s3.connection import S3Connection
-from boto.beanstalk.layer1 import Layer1
+from boto.beanstalk import connect_to_region
 from boto.s3.key import Key
-from boto.regioninfo import RegionInfo
-from boto import set_stream_logger
-# set_stream_logger('boto')
 
 from time import time, sleep
 import zipfile
 import os
 import sys
+import yaml
 
 
 class AwsCredentials:
@@ -37,24 +34,12 @@ class EbsHelper(object):
         Creates the EbsHelper
         """
         self.aws            = aws
-        self.region         = RegionInfo(name=aws.region, endpoint='elasticbeanstalk.'+aws.region+'.amazonaws.com')
-        self.ebs            = Layer1(aws_access_key_id=aws.access_key, aws_secret_access_key=aws.secret_key, region=self.region)
-        self.s3             = S3Connection(aws.access_key, aws.secret_key)
+        self.ebs            = connect_to_region(aws.region, aws_access_key_id=aws.access_key, aws_secret_access_key=aws.secret_key)
+        self.s3             = S3Connection(aws.access_key, aws.secret_key, host='s3-'+aws.region+'.amazonaws.com')
         self.app_name       = app_name
 
-    def parse_option_settings(self, option_settings):
-        """
-        Parses option_settings as they are defined in the configuration file
-        """
-        ret = []
-        for settings_group in option_settings:
-            for namespace, params in settings_group.items():
-                for key, value in params.items():
-                    ret.append((namespace, key, value))
-        return ret
 
-
-    def create_archive(self, directory, filename, ignore_predicate=None, ignored_files=['.git', '.svn']):
+    def create_archive(self, directory, filename, config={}, ignore_predicate=None, ignored_files=['.git', '.svn']):
         """
         Creates an archive from a directory and returns
         the file that was created.
@@ -65,9 +50,10 @@ class EbsHelper(object):
         # create it
         print("Creating archive: "+filename)
         for root, dirs, files in os.walk(directory, followlinks=True):
-            archive_root = os.path.abspath(root)[root_len:]
+            archive_root = os.path.abspath(root)[root_len+1:]
             for f in files:
                 fullpath = os.path.join(root, f)
+                archive_name = os.path.join(archive_root, f)
 
                 # ignore the file we're createing
                 if filename in fullpath:
@@ -77,16 +63,29 @@ class EbsHelper(object):
                 if ignored_files is not None:
                     for name in ignored_files:
                         if fullpath.endswith(name):
+                            print("Skipping: "+name)
                             continue
 
                 # do predicate
                 if ignore_predicate is not None:
-                    if not ignore_predicate(name):
+                    if not ignore_predicate(archive_name):
+                        print("Skipping: "+archive_name)
                         continue
 
-                archive_name = os.path.join(archive_root, f)
-                print("Adding: "+fullpath)
+                print("Adding: "+archive_name)
                 zip.write(fullpath, archive_name, zipfile.ZIP_DEFLATED)
+
+        # add config
+        for conf in config:
+            for conf, tree in conf.items():
+                content = None
+                if tree.has_key('yaml'):
+                    content = yaml.dump(tree['yaml'], default_flow_style=False)
+                else:
+                    content = tree.get('content', '')
+                print("Writing config file for "+str(conf))
+                zip.writestr('.ebextensions/'+conf, content, zipfile.ZIP_DEFLATED)
+
         zip.close()
         return filename
 
@@ -113,11 +112,9 @@ class EbsHelper(object):
 
         # upload the new version
         k = Key(bucket)
-        k.key = self.bucket_path+key
+        k.key = self.aws.bucket_path+key
         k.set_metadata('time', str(time()))
-        f = open(filename)
-        k.set_contents_from_file(f, cb=__report_upload_progress, num_cb=10)
-        f.close()
+        k.set_contents_from_filename(filename, cb=__report_upload_progress, num_cb=10)
 
     def list_available_solution_stacks(self):
         """
@@ -136,6 +133,15 @@ class EbsHelper(object):
         self.ebs.create_application(self.app_name, description=description)
 
 
+    def delete_application(self):
+        """
+        Creats an application and sets the helpers current
+        app_name to the created application
+        """
+        print("Deleting application "+self.app_name)
+        self.ebs.delete_application(self.app_name, terminate_env_by_force=True)
+
+
     def application_exists(self):
         """
         Returns whether or not the given app_name exists
@@ -146,11 +152,11 @@ class EbsHelper(object):
 
     def create_environment(self, env_name, version_label=None,
         solution_stack_name=None, cname_prefix=None, description=None,
-        option_settings=None, wait=True):
+        option_settings=None):
         """
         Creates a new environment
         """
-        print("Creating environment "+env_name)
+        print("Creating environment: "+env_name)
         self.ebs.create_environment(self.app_name, env_name,
             version_label=version_label,
             solution_stack_name=solution_stack_name,
@@ -158,42 +164,62 @@ class EbsHelper(object):
             description=description,
             option_settings=option_settings)
 
-        if wait:
-            self._wait_for_environment(env_name, version_label=version_label)
-
     def environment_exists(self, env_name):
         """
         Returns whether or not the given environment exists
         """
         response = self.ebs.describe_environments(application_name=self.app_name, environment_names=[env_name], include_deleted=False)
-        return len(response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']) > 0
+        return len(response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']) > 0 \
+            and response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0]['Status'] != 'Terminated'
 
-
-
-    # TODO:
-    def create_application_version(self, version_label, key, versions_to_keep=10):
+    def rebuild_environment(self, env_name):
         """
-        Creates an application version
+        Rebuilds an environment
         """
-        self.ebs.create_application_version(self.app_name, version_label, s3_bucket=self.aws.bucket, s3_key=self.bucket_path+key)
+        print("Rebuilding "+args.environment)
+        self.ebs.rebuild_environment(environment_name=env_name)
 
+    def get_environments(self):
+        """
+        Returns the environments
+        """
+        response = self.ebs.describe_environments(application_name=self.app_name, include_deleted=False)
+        return response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']
 
+    def delete_environment(self, environment_name):
+        """
+        Deletes an environment
+        """
+        self.ebs.terminate_environment(environment_name=environment_name, terminate_resources=True)
 
-    # TODO:
-    def update_environment(self, version_label):
+    def update_environment(self, environment_name, description=None, option_settings=[]):
         """
         Updates an application version
         """
-        self.ebs.update_environment(environment_name=self.env_name, version_label=version_label)
-        if wait_time_secs <= 0:
-            return
+        print("Updating environment: "+environment_name)
+        messages = self.ebs.validate_configuration_settings(self.app_name, option_settings, environment_name=environment_name)
+        messages = messages['ValidateConfigurationSettingsResponse']['ValidateConfigurationSettingsResult']['Messages']
+        ok = True
+        for message in messages:
+            if message['Severity'] == 'error':
+                ok = False
+            print("["+message['Severity']+"] "+environment_name+" - '"+message['Namespace']+":"+message['OptionName']+"': "+message['Message'])
+        self.ebs.update_environment(environment_name=environment_name, description=description, option_settings=option_settings)
 
-        if wait:
-            self._wait_for_environment(env_name, version_label)
+    def deploy_version(self, environment_name, version_label):
+        """
+        Deploys a version to an environment
+        """
+        print("Deploying "+version_label+" to "+environment_name)
+        self.ebs.update_environment(environment_name=environment_name, version_label=version_label)
 
+    def create_application_version(self, version_label, key):
+        """
+        Creates an application version
+        """
+        print("Creating application version "+version_label+" for "+key)
+        self.ebs.create_application_version(self.app_name, version_label, s3_bucket=self.aws.bucket, s3_key=self.aws.bucket_path+key)
 
-
-    # TODO:
     def delete_unused_versions(self, versions_to_keep=10):
         """
         Deletes unused versions
@@ -214,44 +240,74 @@ class EbsHelper(object):
                 sleep(2)
 
 
-    def _wait_for_environment(self, env_name, version_label=None, wait_time_secs=600):
+    def wait_for_environments(self, environment_names, health=None, status=None, version_label=None, include_deleted=True, wait_time_secs=1800):
         """
         Waits for an environment to have the given version_label
         and to be in the green state
         """
 
-        s = "Waiting for environemnt "+env_name+" to be Green"
+        # turn into a list
+        if not isinstance(environment_names, (list, tuple)):
+            environment_names = [environment_names]
+        environment_names = environment_names[:]
+
+        # print some stuff
+        s = "Waiting for environemnt(s) "+(", ".join(environment_names))+" to"
+        if health is not None:
+            s = s +" have health "+health
+        else:
+            s = s +" have any health"
         if version_label is not None:
             s = s + " and have version "+version_label
+        if status is not None:
+            s = s + " and have status "+status
+        print(s)
 
         started = time()
         while True:
+            # bail if they're all good
+            if len(environment_names)==0:
+                break
+
+            # wait
             sleep(5)
 
             ## get the env
             environments = self.ebs.describe_environments(
-                application_name=self.app_name, environment_names=[env_name], include_deleted=False)
+                application_name=self.app_name, environment_names=environment_names, include_deleted=include_deleted)
             environments = environments['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']
             if len(environments)<=0:
-                raise Exception("Couldn't find environment")
-            env = environments[0]
+                raise Exception("Couldn't find any environments")
 
-            heathy = env['Health'] == 'Green'
-            if version_label is not None:
-                if heathy and env['VersionLabel'] == version_label:
-                    print("Environment "+env_name+" is Green and with expected version")
-                    break
-                else:
-                    print("Environment "+env_name+" is "+env['Health']+" and has version "+env['VersionLabel']+" waiting...")
+            # loop through and wait
+            for env in environments[:]:
+                heathy = env['Health'] == health
+                env_name = env['EnvironmentName']
 
-            else:
-                if heathy:
-                    print("Environment "+env_name+" is Green")
-                    break
+                # the message
+                msg = "Environment "+env_name+" is "+env['Health']
+                if version_label is not None:
+                    msg = msg + " and has version "+env['VersionLabel']
+                if status is not None:
+                    msg = msg + " and has status "+env['Status']
+
+                # what we're doing
+                good_to_go = True
+                if health is not None:
+                    good_to_go = good_to_go and env['Health'] == health
+                if status is not None:
+                    good_to_go = good_to_go and env['Status'] == status
+                if version_label is not None:
+                    good_to_go = good_to_go and env['VersionLabel'] == version_label
+
+                # log it
+                if good_to_go:
+                    print(msg+" ... done")
+                    environment_names.remove(env_name)
                 else:
-                    print("Environment "+env_name+" is "+env['Health']+" waiting...")
+                    print(msg+" ... waiting")
 
             # check th etime
             elapsed = time()-started
-            if elapsed > self.wait_time_secs:
-                raise Exception("Wait time for environment to be green with new version expired")
+            if elapsed > wait_time_secs:
+                raise Exception("Wait time for environemnt(s) "+(" and ".join(environment_names))+" to be "+health+" expired")

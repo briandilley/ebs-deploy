@@ -4,6 +4,10 @@ import argparse
 import ebs_deploy
 import yaml
 import sys
+import os
+import re
+import uuid
+from datetime import datetime
 
 # the commands
 def main():
@@ -12,24 +16,53 @@ def main():
     """
     commands = [
         'init',
-        'list_solution_stacks'
+        'delete_application',
+        'list_solution_stacks',
+        'rebuild_environment',
+        'tail',
+        'deploy'
     ]
 
+    # bail if we don't have a command
+    if len(sys.argv)<2:
+        print("usage: ebs-deploy command [options | help]")
+        print("Where command is one of:")
+        for cmd in commands:
+            print("    "+cmd)
+        exit(-1)
+
+    # get the command
+    command = sys.argv[1]
+
     # setup arguments
-    parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk')
-    parser.add_argument('-c', '--config-file',      help='Configuration file', default='ebs.config')
-    parser.add_argument('-e', '--environment-name', help='The environment name')
-    parser.add_argument('-a', '--archive', 			help='The archive to deploy, must use this or the directory option')
-    parser.add_argument('-d', '--directory', 		help='The directory to deploy, must use this or archive option')
-    parser.add_argument('command',                  help='The command', choices=commands)
+    parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk', usage='%(prog)s '+command+' [options]')
+    parser.add_argument('-c', '--config-file', help='Configuration file', default='ebs.config')
+    parser.add_argument('-v', '--verbose', help='Enable debug logging', action='store_true')
+
+    # let commands add arguments
+    try:
+        arg_callback = getattr(sys.modules[__name__], 'args_'+command)
+        arg_callback(parser)
+    except AttributeError:
+        pass
+
+    # check for help
+    if len(sys.argv) == 3 and sys.argv[2]=='help':
+        parser.print_help()
+        exit(-1)
 
     # parse arguments
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[2:])
 
     # make sure we have an archive or a directory
-    if not args.command or not args.config_file:
+    if not args.config_file or not os.path.exists(args.config_file):
     	parser.print_help()
     	exit(-1)
+
+    # enable logging
+    if args.verbose:
+        from boto import set_stream_logger
+        set_stream_logger('boto')
 
     # load config
     f = open(args.config_file, 'r')
@@ -47,7 +80,91 @@ def main():
     # create helper
     helper = ebs_deploy.EbsHelper(aws, app_name=config['app']['app_name'])
 
-    exit(getattr(sys.modules[__name__], 'cmd_'+args.command)(helper, config, args))
+    # execute the command
+    exit(getattr(sys.modules[__name__], 'cmd_'+command)(helper, config, args))
+    return
+
+
+
+def _parse_option_settings(option_settings):
+    """
+    Parses option_settings as they are defined in the configuration file
+    """
+    ret = []
+    for settings_group in option_settings:
+        for namespace, params in settings_group.items():
+            for key, value in params.items():
+                ret.append((namespace, key, value))
+    return ret
+
+
+
+def args_deploy(parser):
+    """
+    adds arguments for the deploy command
+    """
+    parser.add_argument('-e', '--environment',      help='Environment name', required=True)
+    parser.add_argument('-w', '--dont-wait',        help='Skip waiting for the init to finish', action='store_true')
+    parser.add_argument('-a', '--archive',          help='Archive file', required=False)
+    parser.add_argument('-d', '--directory',        help='Directory', required=False)
+    parser.add_argument('-l', '--version-label',    help='Version label', required=False)
+
+def cmd_deploy(helper, config, args):
+    """
+    Deploys to an environment
+    """
+    version_label = args.version_label
+    archive = args.archive
+
+    # build the archive
+    if not archive and not version_label:
+        directory = args.directory
+        if not directory:
+            directory = "."
+        includes = config.get('app', {}).get('deployment', {}).get('include', [])
+        excludes = config.get('app', {}).get('deployment', {}).get('excludes', [])
+        config_files = config.get('app', {}).get('environments', {}).get(args.environment, {}).get('config_files')
+        def _predicate(f):
+            for exclude in excludes:
+                if re.match(exclude, f):
+                    return False
+            if len(includes)>0:
+                for include in includes:
+                    if re.match(include, f):
+                        return True
+                return False
+            return True
+        version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
+        archive = helper.create_archive(directory, version_label+".zip", config=config_files, ignore_predicate=_predicate)
+        helper.upload_archive(archive, version_label+".zip")
+        helper.create_application_version(version_label, version_label+".zip")
+
+    # deploy it
+    helper.deploy_version(args.environment, version_label)
+    helper.delete_unused_versions(versions_to_keep=int(config.get('app', {}).get('versions_to_keep', '10')))
+
+    # wait
+    if not args.dont_wait:
+        helper.wait_for_environments(args.environment, health='Great', status='Ready')
+
+
+def args_rebuild_environment(parser):
+    """
+    adds arguments for the rebuild_environment command
+    """
+    parser.add_argument('-e', '--environment',  help='Environment name', required=True)
+    parser.add_argument('-w', '--dont-wait',    help='Skip waiting for the init to finish', action='store_true')
+
+def cmd_rebuild_environment(helper, config, args):
+    """
+    Rebuilds an environment
+    """
+    helper.rebuild_environment(args.environment)
+
+    # wait
+    if not args.dont_wait:
+        helper.wait_for_environments(args.environment, health='Great', status='Ready')
+
 
 
 def cmd_list_solution_stacks(helper, config, args):
@@ -57,51 +174,122 @@ def cmd_list_solution_stacks(helper, config, args):
     print("Available solution stacks")
     for stack in helper.list_available_solution_stacks():
         print("    "+str(stack))
+    return 0
 
+
+
+def args_delete_application(parser):
+    """
+    Args for the delete application command
+    """
+    parser.add_argument('-w', '--dont-wait', help='Skip waiting for the app to be deleted', action='store_true')
+
+def cmd_delete_application(helper, config, args):
+    """
+    Deletes an environment
+    """
+    helper.delete_application()
+
+    # wait
+    if not args.dont_wait:
+
+        # get environments
+        environment_names = []
+        for env_name, env_config in config['app']['environments'].items():
+            environment_names.append(env_name)
+
+        # wait for them
+        helper.wait_for_environments(environment_names, status='Terminated')
+    return 0
+
+
+def args_update_environments(parser):
+    """
+    Args for the init command
+    """
+    parser.add_argument('-e', '--environment',  help='Environment name', required=False, nargs='+')
+    parser.add_argument('-w', '--dont-wait', help='Skip waiting for the app to be deleted', action='store_true')
+
+def cmd_update_environments(helper, config, args):
+    """
+    Updates environments
+    """
+    environments = []
+    if args.environment:
+        for env_name in args.environment:
+            environments.append(env_name)
+    else:
+        for env_name, env_config in config['app']['environments'].items():
+            environments.append(env_name)
+
+    for env_name in environments:
+        env = config['app']['environments'][env_name]
+        option_settings = _parse_option_settings(env.get('option_settings', {}))
+        helper.update_environment(env_name,
+            description=env.get('description'),
+            option_settings=option_settings)
+
+    # wait
+    if not args.dont_wait:
+        helper.wait_for_environments(environments, health='Green', status='Ready')
+
+
+def args_init(parser):
+    """
+    Args for the init command
+    """
+    parser.add_argument('-w', '--dont-wait', help='Skip waiting for the init to finish', action='store_true')
+    parser.add_argument('-d', '--delete', help='Delete unknown environments', action='store_true')
 
 def cmd_init(helper, config, args):
     """
     The init command
     """
 
-    # environment name
-    env_name = args.environment_name if args.environment_name else None
-
     # check to see if the application exists
     if not helper.application_exists():
         helper.create_application(config['app'].get('description'))
+    else:
+        print("Application "+config['app']['app_name']+" exists")
 
     # create environments
+    environment_names = []
+    environments_to_wait_for_green = []
     for env_name, env_config in config['app']['environments'].items():
+        environment_names.append(env_name)
         if not helper.environment_exists(env_name):
-            option_settings = helper.parse_option_settings(env_config.get('option_settings', {}))
+            option_settings = _parse_option_settings(env_config.get('option_settings', {}))
             helper.create_environment(env_name,
                 solution_stack_name=env_config.get('solution_stack_name'),
                 cname_prefix=env_config.get('cname_prefix'),
                 description=env_config.get('description'),
-                option_settings=option_settings,
-                wait=True)
+                option_settings=option_settings)
+            environments_to_wait_for_green.append(env_name)
+        else:
+            print("Environment "+env_name+" exists")
+
+    # get the environments
+    environments_to_wait_for_term = []
+    if args.delete:
+        environments = helper.get_environments()
+        for env in environments:
+            if env['EnvironmentName'] not in environment_names:
+                if env['Status'] != 'Ready':
+                    print("Unable to delete "+env['EnvironmentName']+" because it's not in status Ready ("+env['Status']+")")
+                else:
+                    print("Deleting environment: "+env['EnvironmentName'])
+                    helper.delete_environment(env['EnvironmentName'])
+                    environments_to_wait_for_term.append(env['EnvironmentName'])
+
+    # wait
+    if not args.dont_wait and len(environments_to_wait_for_green)>0:
+        helper.wait_for_environments(environments_to_wait_for_green, health='Green', status='Ready', include_deleted=False)
+    if not args.dont_wait and len(environments_to_wait_for_term)>0:
+        helper.wait_for_environments(environments_to_wait_for_term, status='Terminated', include_deleted=False)
+
+    print("Application initialized")
+    return 0
 
 
-    # get an archive
-    archive = args.archive if args.archive else create_archive(args.directory, args.version_label+'.zip')
-
-    # send to s3
-    debug("Uploading application archive: "+archive)
-    path = args.bucket_path if args.bucket_path else args.app_name
-    key = path+"/"+archive
-    upload_archive(aws, archive, key)
-
-    # create app version
-    debug("Creating application version")
-    create_application_version(aws, args.app_name, args.version_label, key, args.keep)
-
-    # update the version
-    debug("Updating environment to use new version")
-    update_environment(aws, args.app_name, args.env_name, args.version_label)
-
-    debug("Deployment complete")
-    exit(0)
-
-
+# start the madness
 main()
