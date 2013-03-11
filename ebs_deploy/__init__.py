@@ -23,6 +23,19 @@ class AwsCredentials:
         if not self.bucket_path.endswith('/'):
             self.bucket_path = self.bucket_path+'/'
 
+def get(vals, key, default_val=None):
+    """
+    Returns a dictionary value
+    """
+    val = vals
+    for part in key.split('.'):
+        if isinstance(val, dict):
+            val = val.get(part, None)
+            if val is None:
+                return default_val
+        else:
+            return default_val
+    return val
 
 class EbsHelper(object):
     """
@@ -84,7 +97,7 @@ class EbsHelper(object):
                 else:
                     content = tree.get('content', '')
                 print("Writing config file for "+str(conf))
-                zip.writestr('.ebextensions/'+conf, content, zipfile.ZIP_DEFLATED)
+                zip.writestr(conf, content, zipfile.ZIP_DEFLATED)
 
         zip.close()
         return filename
@@ -176,7 +189,7 @@ class EbsHelper(object):
         """
         Rebuilds an environment
         """
-        print("Rebuilding "+args.environment)
+        print("Rebuilding "+env_name)
         self.ebs.rebuild_environment(environment_name=env_name)
 
     def get_environments(self):
@@ -224,6 +237,13 @@ class EbsHelper(object):
         """
         Deletes unused versions
         """
+
+        # get versions in use
+        environments = self.ebs.describe_environments(application_name=self.app_name, include_deleted=False)
+        environments = environments['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']
+        versions_in_use = []
+        for env in environments:
+            versions_in_use.append(env['VersionLabel'])
 
         # get all versions
         versions = self.ebs.describe_application_versions(application_name=self.app_name)
