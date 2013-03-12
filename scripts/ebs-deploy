@@ -341,6 +341,7 @@ def cmd_init(helper, config, args):
     environments_to_wait_for_green = []
     for env_name, env_config in get(config, 'app.environments').items():
         environment_names.append(env_name)
+        env_config = _parse_env_config(config, env_name)
         if not helper.environment_exists(env_name):
             option_settings = _parse_option_settings(env_config.get('option_settings', {}))
             helper.create_environment(env_name,
