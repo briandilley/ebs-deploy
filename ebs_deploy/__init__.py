@@ -260,7 +260,7 @@ class EbsHelper(object):
                 sleep(2)
 
 
-    def wait_for_environments(self, environment_names, health=None, status=None, version_label=None, include_deleted=True, wait_time_secs=1800):
+    def wait_for_environments(self, environment_names, health=None, status=None, version_label=None, include_deleted=True, wait_time_secs=600):
         """
         Waits for an environment to have the given version_label
         and to be in the green state
