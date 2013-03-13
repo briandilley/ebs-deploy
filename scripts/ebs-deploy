@@ -7,7 +7,7 @@ import os
 import re
 import uuid
 from datetime import datetime
-from ebs_deploy import AwsCredentials, EbsHelper, get
+from ebs_deploy import AwsCredentials, EbsHelper, get, out
 
 # the commands
 def main():
@@ -27,10 +27,10 @@ def main():
 
     # bail if we don't have a command
     if len(sys.argv)<2:
-        print("usage: ebs-deploy command [options | help]")
-        print("Where command is one of:")
+        out("usage: ebs-deploy command [options | help]")
+        out("Where command is one of:")
         for cmd in commands:
-            print("    "+cmd)
+            out("    "+cmd)
         exit(-1)
 
     # get the command
@@ -133,7 +133,7 @@ def cmd_dump(helper, config, args):
     """
     settings = _parse_option_settings(get(_parse_env_config(config, args.environment), 'option_settings', []))
     for setting in settings:
-        print(str(setting))
+        out(str(setting))
 
 def args_update(parser):
     """
@@ -255,9 +255,9 @@ def cmd_list_solution_stacks(helper, config, args):
     """
     Lists solution stacks
     """
-    print("Available solution stacks")
+    out("Available solution stacks")
     for stack in helper.list_available_solution_stacks():
-        print("    "+str(stack))
+        out("    "+str(stack))
     return 0
 
 
@@ -334,7 +334,7 @@ def cmd_init(helper, config, args):
     if not helper.application_exists():
         helper.create_application(get(config, 'app.description'))
     else:
-        print("Application "+get(config, 'app.app_name')+" exists")
+        out("Application "+get(config, 'app.app_name')+" exists")
 
     # create environments
     environment_names = []
@@ -351,7 +351,7 @@ def cmd_init(helper, config, args):
                 option_settings=option_settings)
             environments_to_wait_for_green.append(env_name)
         else:
-            print("Environment "+env_name+" exists")
+            out("Environment "+env_name+" exists")
 
     # get the environments
     environments_to_wait_for_term = []
@@ -360,9 +360,9 @@ def cmd_init(helper, config, args):
         for env in environments:
             if env['EnvironmentName'] not in environment_names:
                 if env['Status'] != 'Ready':
-                    print("Unable to delete "+env['EnvironmentName']+" because it's not in status Ready ("+env['Status']+")")
+                    out("Unable to delete "+env['EnvironmentName']+" because it's not in status Ready ("+env['Status']+")")
                 else:
-                    print("Deleting environment: "+env['EnvironmentName'])
+                    out("Deleting environment: "+env['EnvironmentName'])
                     helper.delete_environment(env['EnvironmentName'])
                     environments_to_wait_for_term.append(env['EnvironmentName'])
 
@@ -372,7 +372,7 @@ def cmd_init(helper, config, args):
     if not args.dont_wait and len(environments_to_wait_for_term)>0:
         helper.wait_for_environments(environments_to_wait_for_term, status='Terminated', include_deleted=False)
 
-    print("Application initialized")
+    out("Application initialized")
     return 0
 
 
