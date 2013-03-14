@@ -368,7 +368,7 @@ def cmd_init(helper, config, args):
 
     # wait
     if not args.dont_wait and len(environments_to_wait_for_green)>0:
-        helper.wait_for_environments(environments_to_wait_for_green, health='Green', status='Ready', include_deleted=False)
+        helper.wait_for_environments(environments_to_wait_for_green, status='Ready', include_deleted=False)
     if not args.dont_wait and len(environments_to_wait_for_term)>0:
         helper.wait_for_environments(environments_to_wait_for_term, status='Terminated', include_deleted=False)
 
