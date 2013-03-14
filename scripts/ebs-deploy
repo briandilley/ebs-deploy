@@ -152,7 +152,7 @@ def cmd_update(helper, config, args):
     if args.version_label:
         helper.deploy_version(args.environment, args.version_label)
         if not args.dont_wait:
-            helper.wait_for_environments(args.environment, health='Green', status='Ready', version_label=args.version_label)
+            helper.wait_for_environments(args.environment, status='Ready', version_label=args.version_label)
 
     # update it
     env = _parse_env_config(config, args.environment)
@@ -215,7 +215,7 @@ def cmd_deploy(helper, config, args):
 
     # wait
     if not args.dont_wait:
-        helper.wait_for_environments(args.environment, health='Green', status='Ready', version_label=version_label)
+        helper.wait_for_environments(args.environment, status='Ready', version_label=version_label)
 
     # update it
     env = _parse_env_config(config, args.environment)
