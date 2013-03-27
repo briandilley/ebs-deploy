@@ -1,4 +1,249 @@
-ebs-deploy
-==========
+# ebs-deploy
+ebs-deploy is a command line tool for managing application deployments on Amazon's [Beanstalk].  Deployment of applications to any of [Beanstalk]'s available solution stacks is achievable with ebs-deploy.
 
-Python based command line tools for managing Amazon Elastic Beanstalk applications.
+## Installation
+Installation is possible with pip and easy_install and can be done system wide or in a virtual environment.
+
+with pip:
+
+    > easy_install pip # if you don't already have pip installed
+    > pip install git+git://github.com/briandilley/ebs-deploy.git
+
+with easy_install:
+
+    > easy_install git+git://github.com/briandilley/ebs-deploy.git
+
+
+## Usage
+Usage of ebs-deploy uses the following pattern:
+
+    > ebs-deploy command options
+
+Running ebs-deploy without an arguments will list the available commands:
+
+    > ebs-deploy 
+    usage: ebs-deploy command [options | help]
+    Where command is one of:
+        init
+        delete_application
+        list_solution_stacks
+        rebuild
+        tail
+        deploy
+        update
+        dump
+
+Every command requires a configuration file named `ebs.config` to be present in the directory in which the command is run or by passing the `-c` or `--config-file` argument.  Documentation on the format of the configuration file can be found later in this document.  To get help on any of the commands simply run: `> ebs-deploy command --help`.
+
+## Examples
+The following examples omit the `--config-file` argument for brevity.  If you're configuration file is not named `ebs.config` and\or does not exist in the working directory of the ebs-deploy program you will need to add the `-c` or `--config-file` argument.
+
+### Initialize your application
+After creating your application's configuration file you will first need to create your application and it's environments.  To do this you use the `init` command:
+
+    > ebs-deploy init
+
+This will create the application and it's environments.  This command can be run at any time, even if the application already exists.  For instance, if you want to add a new environment to your application simply add it to your configuration file and run this command; the new environment will be created and the existing ones left alone.  Also, if you want to remove an environment you simply remove it from your configuration file and run the command; the environment will be terminated.
+
+### Deploy your application
+Once your application and it's environments have been created you are ready to deploy an application to an environment.  To do this use the deploy command:
+
+    > ebs-deploy deploy --environment MyCo-MyApp-Prod
+   
+This will create an application archive (or use one passed in via the `--archive` argument) and deploy it to the given environment.
+
+### Update an environment(s)
+You may decide that you need to update your environment configuration in some way (change auto-scaling parameters, add a file, run a container command, etc).  This can be achieved by modifying your configuration file and running the update_environments command:
+
+    > ebs-deploy update_environments --environment MyCo-MyApp-Prod
+
+### Rebuild an environment
+Sometimes things aren't working as expected in your Beanstalk environment and you just want to start from scratch.  This can be done by running the rebuild command:
+
+    > ebs-deploy rebuild --environment MyCo-MyApp-Prod
+
+The environment will then be completely rebuilt (load balancers, instances and all)
+
+### Deploy an existing version
+If you need to re-deploy a previously deployed version this can be achieved by using the update command.
+
+    > ebs-deploy update --environment --version-label my-app-version-1
+
+This will re-deploy the version `my-app-version-1` to the environment.  The version label supplied must be a previously deployed version and must not have been deleted from the application.  The update command also applies the same configuration updates that the update_environments command does.
+
+### Zero downtime deployment
+For an actively used application or an application where any amount of downtime is unacceptable the zero downtime deployment option can be used:
+
+    > ebs-deploy zdt_deploy --environment MyCo-MyApp-Prod
+
+Zero downtime deployment takes a while because it creates an entirely new environment, deploys the new application version to it, swaps the cnames with the currently running environment and then terminates the old environment.
+
+### Delete the application
+When your application is ready to be decommissioned you can use the delete_application command:
+
+    > ebs-deploy delete_application
+
+The application and all of it's environments will be deleted.
+
+# Configuration File Format
+Before you can begin using ebs-deploy you need to create a configration file for your application.  Configuration files are written in YAML and have the following structure:
+
+```yaml
+
+    # aws account config
+    aws:
+        access_key: '...'
+        secret_key: '...'
+        region: 'us-west-1'
+        bucket: 'my-company-ebs-archives'
+        bucket_path: 'my-app'
+    
+    # application configuration
+    app:
+        versions_to_keep: 10 # the number of unused application versions to keep around
+        app_name: 'My awesome app' # the name of your application
+        description: 'An application that is awesome' # description of your app
+    
+        # configuration that applies to all environments, environment
+        # specific configuration is merged with this configuration allowing
+        # for default values that can be overriden (or added to) on
+        # an environment specific basis.  Any of the values\nodes below
+        # can also be specified in the environment specific configuration
+        # below
+        all_environments:
+            solution_stack_name: '64bit Amazon Linux running Python'
+            
+            # option_settings contain namespaced key\value pairs that are
+            # supported by Beanstalk, follows is an example of some of
+            # the values that you might want to set for a python application
+            option_settings:
+    
+                'aws:autoscaling:launchconfiguration':
+                    Ec2KeyName: 'mycompany-ssh-key-name'
+                    InstanceType: 't1.micro'
+                    SecurityGroups: 'mycompany-prod'
+    
+                'aws:elasticbeanstalk:container:python':
+                    WSGIPath: 'runsite.py'
+                    NumProcesses: 1
+                    NumThreads: 15
+    
+                'aws:autoscaling:asg':
+                    MinSize: 1
+                    MaxSize: 5
+    
+                'aws:elasticbeanstalk:container:python:staticfiles':
+                    "/static/": "my_app/static/"
+    
+                'aws:elb:loadbalancer':
+                    SSLCertificateId: 'arn:aws:iam::XXXXXXX:server-certificate/my-company'
+                    LoadBalancerHTTPSPort: 443
+    
+                'aws:elb:policies':
+                    Stickiness Policy: true
+    
+                'aws:elasticbeanstalk:sns:topics':
+                    Notification Endpoint: 'ops@mycompany.com'
+    
+                'aws:elasticbeanstalk:application':
+                    Application Healthcheck URL: '/'
+    
+                'aws:elasticbeanstalk:application:environment':
+                    AWS_ACCESS_KEY_ID: '...'
+                    AWS_SECRET_KEY: '...'
+    
+            # instructions on how to build the application archive
+            archive:
+                includes: # files to include, a list of regex
+                excludes: # files to exclude, a list of regex
+                    - '^.gitignore$'
+                    - '^\.git*'
+                    - '.*\.egg-info$'
+                    - '^tests.*'
+                    - '.*\.zip$'
+                    - '^venv.*'
+    
+                # a list of files to add to the archive, follows are
+                # the two ways to dynamically add files to the archive:
+                # contet, and yaml
+                files:
+                
+                    # here's an example of adding a "content" file to
+                    # the archive at the root of the archive called
+                    # "deflate.conf" that configures apache to serve
+                    # things using mod_deflate (gzip).
+                    - deflate.conf:
+                        # the content node is important here
+                        content: |
+                            <Location />
+                                # Insert filter
+                                SetOutputFilter DEFLATE
+                                # Don't compress images
+                                 SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png)$ no-gzip dont-vary
+                                # Make sure proxies don't deliver the wrong content
+                                Header append Vary User-Agent env=!dont-vary
+                            </Location>
+    
+                    # here's an example of adding a "yaml" file to
+                    # the archive in the .ebextensions sub directory
+                    # named "02-packages.config".  The yaml nodes that
+                    # follow the "yaml" node under this will be added
+                    # to the file
+                    - .ebextensions/02-packages.config:
+                        # the yaml node is important here
+                        yaml:
+                            packages:
+                                yum:
+                                    rubygems: ''
+                                    pcre-devel: ''
+                                    memcached-devel: ''
+                                rubygems:
+                                    sass: ''
+    
+                    # another example of adding a yaml file to the archive
+                    # this one tells beanstalk to run some commands on deployment
+                    - .ebextensions/03-commands.config:
+                        yaml:
+                            commands:
+                                00010-timezone:
+                                    command: "ln -sf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime"
+                            container_commands:
+                                00020-deflate:
+                                    command: "cp deflate.conf /etc/httpd/conf.d/"
+                                00030-migrations:
+                                    command: "... some db migration command here ..."
+    
+        # Under the environments node is each environment and their config.
+        # Environment specific configuration is determined by first processing
+        # the all_environments config and then "overlaying" the environment
+        # specific configuration onto it.  Any number of environments can be
+        # specified
+        environments:
+    
+            # the production version of the app
+            'MyCo-MyApp-Prod': 
+                cname_prefix: 'myco-myapp-prod'
+                option_settings:
+                    'aws:elasticbeanstalk:application:environment':
+                        MYAPP_ENV_NAME: 'prod'
+                    'aws:autoscaling:launchconfiguration':
+                        InstanceType: 'm1.medium'
+    
+            # the QA version of the app
+            'MyCo-MyApp-QA': 
+                cname_prefix: 'myco-myapp-qa'
+                option_settings:
+                    'aws:elasticbeanstalk:application:environment':
+                        MYAPP_ENV_NAME: 'qa'
+
+```
+
+
+License
+-
+MIT
+
+  [Beanstalk]: http://aws.amazon.com/elasticbeanstalk/
+  
+
+    

@@ -4,26 +4,15 @@ import argparse
 import yaml
 import sys
 import os
-import re
-import uuid
-from datetime import datetime
 from ebs_deploy import AwsCredentials, EbsHelper, get, out
+from ebs_deploy.commands import get_command_names, get_command
 
 # the commands
 def main():
     """
     the main
     """
-    commands = [
-        'init',
-        'delete_application',
-        'list_solution_stacks',
-        'rebuild',
-        'tail',
-        'deploy',
-        'update',
-        'dump'
-    ]
+    commands = get_command_names()
 
     # bail if we don't have a command
     if len(sys.argv)<2:
@@ -34,17 +23,17 @@ def main():
         exit(-1)
 
     # get the command
-    command = sys.argv[1]
+    command_name = sys.argv[1]
+    command = get_command(command_name)
 
     # setup arguments
-    parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk', usage='%(prog)s '+command+' [options]')
+    parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk', usage='%(prog)s '+command_name+' [options]')
     parser.add_argument('-c', '--config-file', help='Configuration file', default='ebs.config')
     parser.add_argument('-v', '--verbose', help='Enable debug logging', action='store_true')
 
     # let commands add arguments
     try:
-        arg_callback = getattr(sys.modules[__name__], 'args_'+command)
-        arg_callback(parser)
+        command.add_arguments(parser)
     except AttributeError:
         pass
 
@@ -83,298 +72,10 @@ def main():
     helper = EbsHelper(aws, app_name=get(config, 'app.app_name'))
 
     # execute the command
-    exit(getattr(sys.modules[__name__], 'cmd_'+command)(helper, config, args))
+    exit(command.execute(helper, config, args))
     return
 
 
-
-def _parse_option_settings(option_settings):
-    """
-    Parses option_settings as they are defined in the configuration file
-    """
-    ret = []
-    for namespace, params in option_settings.items():
-        for key, value in params.items():
-            ret.append((namespace, key, value))
-    return ret
-
-def _merge_dict(dict1, dict2):
-    ret = dict(dict2)
-    for key, val in dict1.items():
-        val2 = dict2.get(key)
-        if val2 is None:
-            ret[key] = val
-        elif isinstance(val, dict) and isinstance(val2, dict):
-            ret[key] = _merge_dict(val, val2)
-        elif isinstance(val, (list)) and isinstance(val2, (list)):
-            ret[key] = val + val2
-        else:
-            ret[key] = val2
-    return ret
-
-def _parse_env_config(config, env_name):
-    """
-    Parses an environment config
-    """
-    all_env = get(config, 'app.all_environments', {})
-    env = get(config, 'app.environments.'+env_name, {})
-    return _merge_dict(all_env, env)
-
-
-def args_dump(parser):
-    """
-    adds arguments for the dump command
-    """
-    parser.add_argument('-e', '--environment',      help='Environment name', required=True)
-
-def cmd_dump(helper, config, args):
-    """
-    dump command dumps things
-    """
-    settings = _parse_option_settings(get(_parse_env_config(config, args.environment), 'option_settings', []))
-    for setting in settings:
-        out(str(setting))
-
-def args_update(parser):
-    """
-    adds arguments for the deploy command
-    """
-    parser.add_argument('-e', '--environment',      help='Environment name', required=True)
-    parser.add_argument('-w', '--dont-wait',        help='Skip waiting for the init to finish', action='store_true')
-    parser.add_argument('-l', '--version-label',    help='Version label', required=False)
-
-def cmd_update(helper, config, args):
-    """
-    Deploys to an environment
-    """
-
-    # change version
-    if args.version_label:
-        helper.deploy_version(args.environment, args.version_label)
-        if not args.dont_wait:
-            helper.wait_for_environments(args.environment, status='Ready', version_label=args.version_label)
-
-    # update it
-    env = _parse_env_config(config, args.environment)
-    option_settings = _parse_option_settings(env.get('option_settings', {}))
-    helper.update_environment(args.environment,
-        description=env.get('description', None),
-        option_settings=option_settings)
-
-    # wait
-    if not args.dont_wait:
-        helper.wait_for_environments(args.environment, health='Green', status='Ready', version_label=args.version_label)
-
-    # delete unused
-    helper.delete_unused_versions(versions_to_keep=int( get(config, 'app.versions_to_keep', 10) ))
-
-
-
-def args_deploy(parser):
-    """
-    adds arguments for the deploy command
-    """
-    parser.add_argument('-e', '--environment',      help='Environment name', required=True)
-    parser.add_argument('-w', '--dont-wait',        help='Skip waiting for the init to finish', action='store_true')
-    parser.add_argument('-a', '--archive',          help='Archive file', required=False)
-    parser.add_argument('-d', '--directory',        help='Directory', required=False)
-    parser.add_argument('-l', '--version-label',    help='Version label', required=False)
-
-def cmd_deploy(helper, config, args):
-    """
-    Deploys to an environment
-    """
-    version_label = args.version_label
-    archive = args.archive
-
-    # build the archive
-    if not archive and not version_label:
-        directory = args.directory
-        if not directory:
-            directory = "."
-        includes = get(_parse_env_config(config, args.environment), 'archive.includes', [])
-        excludes = get(_parse_env_config(config, args.environment), 'archive.excludes', [])
-        archive_files =  get(_parse_env_config(config, args.environment), 'archive.files', [])
-        def _predicate(f):
-            for exclude in excludes:
-                if re.match(exclude, f):
-                    return False
-            if len(includes)>0:
-                for include in includes:
-                    if re.match(include, f):
-                        return True
-                return False
-            return True
-        version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
-        archive = helper.create_archive(directory, version_label+".zip", config=archive_files, ignore_predicate=_predicate)
-        helper.upload_archive(archive, version_label+".zip")
-        helper.create_application_version(version_label, version_label+".zip")
-
-    # deploy it
-    helper.deploy_version(args.environment, version_label)
-
-    # wait
-    if not args.dont_wait:
-        helper.wait_for_environments(args.environment, status='Ready', version_label=version_label)
-
-    # update it
-    env = _parse_env_config(config, args.environment)
-    option_settings = _parse_option_settings(env.get('option_settings', {}))
-    helper.update_environment(args.environment,
-        description=env.get('description', None),
-        option_settings=option_settings)
-
-    # wait
-    if not args.dont_wait:
-        helper.wait_for_environments(args.environment, health='Green', status='Ready', version_label=version_label)
-
-    # delete unused
-    helper.delete_unused_versions(versions_to_keep=int( get(config, 'app.versions_to_keep', 10) ))
-
-
-def args_rebuild(parser):
-    """
-    adds arguments for the rebuild command
-    """
-    parser.add_argument('-e', '--environment',  help='Environment name', required=True)
-    parser.add_argument('-w', '--dont-wait',    help='Skip waiting for the init to finish', action='store_true')
-
-def cmd_rebuild(helper, config, args):
-    """
-    Rebuilds an environment
-    """
-    helper.rebuild_environment(args.environment)
-
-    # wait
-    if not args.dont_wait:
-        helper.wait_for_environments(args.environment, health='Green', status='Ready')
-
-
-
-def cmd_list_solution_stacks(helper, config, args):
-    """
-    Lists solution stacks
-    """
-    out("Available solution stacks")
-    for stack in helper.list_available_solution_stacks():
-        out("    "+str(stack))
-    return 0
-
-
-
-def args_delete_application(parser):
-    """
-    Args for the delete application command
-    """
-    parser.add_argument('-w', '--dont-wait', help='Skip waiting for the app to be deleted', action='store_true')
-
-def cmd_delete_application(helper, config, args):
-    """
-    Deletes an environment
-    """
-    helper.delete_application()
-
-    # wait
-    if not args.dont_wait:
-
-        # get environments
-        environment_names = []
-        for env_name, env_config in get(config, 'app.environments').items():
-            environment_names.append(env_name)
-
-        # wait for them
-        helper.wait_for_environments(environment_names, status='Terminated')
-    return 0
-
-
-def args_update_environments(parser):
-    """
-    Args for the init command
-    """
-    parser.add_argument('-e', '--environment',  help='Environment name', required=False, nargs='+')
-    parser.add_argument('-w', '--dont-wait', help='Skip waiting for the app to be deleted', action='store_true')
-
-def cmd_update_environments(helper, config, args):
-    """
-    Updates environments
-    """
-    environments = []
-    if args.environment:
-        for env_name in args.environment:
-            environments.append(env_name)
-    else:
-        for env_name, env_config in get(config, 'app.environments').items():
-            environments.append(env_name)
-
-    for env_name in environments:
-        env = get(config, 'app.environments.'+env_name)
-        option_settings = _parse_option_settings(env.get('option_settings', {}))
-        helper.update_environment(env_name,
-            description=env.get('description', None),
-            option_settings=option_settings)
-
-    # wait
-    if not args.dont_wait:
-        helper.wait_for_environments(environments, health='Green', status='Ready')
-
-
-def args_init(parser):
-    """
-    Args for the init command
-    """
-    parser.add_argument('-w', '--dont-wait', help='Skip waiting for the init to finish', action='store_true')
-    parser.add_argument('-d', '--delete', help='Delete unknown environments', action='store_true')
-
-def cmd_init(helper, config, args):
-    """
-    The init command
-    """
-
-    # check to see if the application exists
-    if not helper.application_exists():
-        helper.create_application(get(config, 'app.description'))
-    else:
-        out("Application "+get(config, 'app.app_name')+" exists")
-
-    # create environments
-    environment_names = []
-    environments_to_wait_for_green = []
-    for env_name, env_config in get(config, 'app.environments').items():
-        environment_names.append(env_name)
-        env_config = _parse_env_config(config, env_name)
-        if not helper.environment_exists(env_name):
-            option_settings = _parse_option_settings(env_config.get('option_settings', {}))
-            helper.create_environment(env_name,
-                solution_stack_name=env_config.get('solution_stack_name'),
-                cname_prefix=env_config.get('cname_prefix', None),
-                description=env_config.get('description', None),
-                option_settings=option_settings)
-            environments_to_wait_for_green.append(env_name)
-        else:
-            out("Environment "+env_name+" exists")
-
-    # get the environments
-    environments_to_wait_for_term = []
-    if args.delete:
-        environments = helper.get_environments()
-        for env in environments:
-            if env['EnvironmentName'] not in environment_names:
-                if env['Status'] != 'Ready':
-                    out("Unable to delete "+env['EnvironmentName']+" because it's not in status Ready ("+env['Status']+")")
-                else:
-                    out("Deleting environment: "+env['EnvironmentName'])
-                    helper.delete_environment(env['EnvironmentName'])
-                    environments_to_wait_for_term.append(env['EnvironmentName'])
-
-    # wait
-    if not args.dont_wait and len(environments_to_wait_for_green)>0:
-        helper.wait_for_environments(environments_to_wait_for_green, status='Ready', include_deleted=False)
-    if not args.dont_wait and len(environments_to_wait_for_term)>0:
-        helper.wait_for_environments(environments_to_wait_for_term, status='Terminated', include_deleted=False)
-
-    out("Application initialized")
-    return 0
-
-
 # start the madness
-main()
+if __name__ == "__main__":
+    main()

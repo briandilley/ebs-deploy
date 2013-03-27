@@ -3,11 +3,13 @@ from boto.s3.connection import S3Connection
 from boto.beanstalk import connect_to_region
 from boto.s3.key import Key
 
+from datetime import datetime
 from time import time, sleep
 import zipfile
 import os
 import sys
 import yaml
+import re
 
 def out(message):
     """
@@ -16,18 +18,19 @@ def out(message):
     sys.stdout.write(message+"\n")
     sys.stdout.flush()
 
-class AwsCredentials:
-    """
-    Class for holding AwsCredentials
-    """
-    def __init__(self, access_key, secret_key, region, bucket, bucket_path):
-        self.access_key = access_key
-        self.secret_key = secret_key
-        self.bucket = bucket
-        self.region = region
-        self.bucket_path = bucket_path
-        if not self.bucket_path.endswith('/'):
-            self.bucket_path = self.bucket_path+'/'
+def merge_dict(dict1, dict2):
+    ret = dict(dict2)
+    for key, val in dict1.items():
+        val2 = dict2.get(key)
+        if val2 is None:
+            ret[key] = val
+        elif isinstance(val, dict) and isinstance(val2, dict):
+            ret[key] = merge_dict(val, val2)
+        elif isinstance(val, (list)) and isinstance(val2, (list)):
+            ret[key] = val + val2
+        else:
+            ret[key] = val2
+    return ret
 
 def get(vals, key, default_val=None):
     """
@@ -43,6 +46,110 @@ def get(vals, key, default_val=None):
             return default_val
     return val
 
+def parse_option_settings(option_settings):
+    """
+    Parses option_settings as they are defined in the configuration file
+    """
+    ret = []
+    for namespace, params in option_settings.items():
+        for key, value in params.items():
+            ret.append((namespace, key, value))
+    return ret
+
+def parse_env_config(config, env_name):
+    """
+    Parses an environment config
+    """
+    all_env = get(config, 'app.all_environments', {})
+    env = get(config, 'app.environments.'+env_name, {})
+    return merge_dict(all_env, env)
+
+def upload_application_archive(helper, env_config, archive=None, directory=None):
+    version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
+    if not archive:
+        if not directory:
+            directory = "."
+        includes = get(env_config, 'archive.includes', [])
+        excludes = get(env_config, 'archive.excludes', [])
+        archive_files =  get(env_config, 'archive.files', [])
+        def _predicate(f):
+            for exclude in excludes:
+                if re.match(exclude, f):
+                    return False
+            if len(includes)>0:
+                for include in includes:
+                    if re.match(include, f):
+                        return True
+                return False
+            return True
+        archive = create_archive(directory, version_label+".zip", config=archive_files, ignore_predicate=_predicate)
+    helper.upload_archive(archive, version_label+".zip")
+    helper.create_application_version(version_label, version_label+".zip")
+    return version_label
+
+def create_archive(directory, filename, config={}, ignore_predicate=None, ignored_files=['.git', '.svn']):
+    """
+    Creates an archive from a directory and returns
+    the file that was created.
+    """
+    zip = zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_DEFLATED)
+    root_len = len(os.path.abspath(directory))
+
+    # create it
+    out("Creating archive: "+filename)
+    for root, dirs, files in os.walk(directory, followlinks=True):
+        archive_root = os.path.abspath(root)[root_len+1:]
+        for f in files:
+            fullpath = os.path.join(root, f)
+            archive_name = os.path.join(archive_root, f)
+
+            # ignore the file we're createing
+            if filename in fullpath:
+                continue
+
+            # ignored files
+            if ignored_files is not None:
+                for name in ignored_files:
+                    if fullpath.endswith(name):
+                        out("Skipping: "+name)
+                        continue
+
+            # do predicate
+            if ignore_predicate is not None:
+                if not ignore_predicate(archive_name):
+                    out("Skipping: "+archive_name)
+                    continue
+
+            out("Adding: "+archive_name)
+            zip.write(fullpath, archive_name, zipfile.ZIP_DEFLATED)
+
+    # add config
+    for conf in config:
+        for conf, tree in conf.items():
+            content = None
+            if tree.has_key('yaml'):
+                content = yaml.dump(tree['yaml'], default_flow_style=False)
+            else:
+                content = tree.get('content', '')
+            out("Writing config file for "+str(conf))
+            zip.writestr(conf, content, zipfile.ZIP_DEFLATED)
+
+    zip.close()
+    return filename
+
+class AwsCredentials:
+    """
+    Class for holding AwsCredentials
+    """
+    def __init__(self, access_key, secret_key, region, bucket, bucket_path):
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self.bucket = bucket
+        self.region = region
+        self.bucket_path = bucket_path
+        if not self.bucket_path.endswith('/'):
+            self.bucket_path = self.bucket_path+'/'
+
 class EbsHelper(object):
     """
     Class for helping with ebs
@@ -57,57 +164,11 @@ class EbsHelper(object):
         self.s3             = S3Connection(aws.access_key, aws.secret_key, host='s3-'+aws.region+'.amazonaws.com')
         self.app_name       = app_name
 
-
-    def create_archive(self, directory, filename, config={}, ignore_predicate=None, ignored_files=['.git', '.svn']):
+    def swap_environment_cnames(self, from_env_name, to_env_name):
         """
-        Creates an archive from a directory and returns
-        the file that was created.
+        Swaps cnames for an environment
         """
-        zip = zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_DEFLATED)
-        root_len = len(os.path.abspath(directory))
-
-        # create it
-        out("Creating archive: "+filename)
-        for root, dirs, files in os.walk(directory, followlinks=True):
-            archive_root = os.path.abspath(root)[root_len+1:]
-            for f in files:
-                fullpath = os.path.join(root, f)
-                archive_name = os.path.join(archive_root, f)
-
-                # ignore the file we're createing
-                if filename in fullpath:
-                    continue
-
-                # ignored files
-                if ignored_files is not None:
-                    for name in ignored_files:
-                        if fullpath.endswith(name):
-                            out("Skipping: "+name)
-                            continue
-
-                # do predicate
-                if ignore_predicate is not None:
-                    if not ignore_predicate(archive_name):
-                        out("Skipping: "+archive_name)
-                        continue
-
-                out("Adding: "+archive_name)
-                zip.write(fullpath, archive_name, zipfile.ZIP_DEFLATED)
-
-        # add config
-        for conf in config:
-            for conf, tree in conf.items():
-                content = None
-                if tree.has_key('yaml'):
-                    content = yaml.dump(tree['yaml'], default_flow_style=False)
-                else:
-                    content = tree.get('content', '')
-                out("Writing config file for "+str(conf))
-                zip.writestr(conf, content, zipfile.ZIP_DEFLATED)
-
-        zip.close()
-        return filename
-
+        self.ebs.swap_environment_cnames(source_environment_name=from_env_name, destination_environment_name=to_env_name)
 
     def upload_archive(self, filename, key, auto_create_bucket=True):
         """
@@ -190,6 +251,16 @@ class EbsHelper(object):
         response = self.ebs.describe_environments(application_name=self.app_name, environment_names=[env_name], include_deleted=False)
         return len(response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']) > 0 \
             and response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0]['Status'] != 'Terminated'
+
+    def environment_name_for_cname(self, env_cname):
+        """
+        Returns an environment name for the given cname
+        """
+        envs = self.get_environments()
+        for env in envs:
+            if env['Status'] != 'Terminated' and env['CNAME'].startswith(env_cname+'.'):
+                return env['EnvironmentName']
+        return None
 
     def rebuild_environment(self, env_name):
         """
@@ -311,20 +382,20 @@ class EbsHelper(object):
                 env_name = env['EnvironmentName']
 
                 # the message
-                msg = "Environment "+env_name+" is "+env['Health']
+                msg = "Environment "+env_name+" is "+str(env['Health'])
                 if version_label is not None:
-                    msg = msg + " and has version "+env['VersionLabel']
+                    msg = msg + " and has version "+str(env['VersionLabel'])
                 if status is not None:
-                    msg = msg + " and has status "+env['Status']
+                    msg = msg + " and has status "+str(env['Status'])
 
                 # what we're doing
                 good_to_go = True
                 if health is not None:
-                    good_to_go = good_to_go and env['Health'] == health
+                    good_to_go = good_to_go and str(env['Health']) == health
                 if status is not None:
-                    good_to_go = good_to_go and env['Status'] == status
+                    good_to_go = good_to_go and str(env['Status']) == status
                 if version_label is not None:
-                    good_to_go = good_to_go and env['VersionLabel'] == version_label
+                    good_to_go = good_to_go and str(env['VersionLabel']) == version_label
 
                 # log it
                 if good_to_go:
