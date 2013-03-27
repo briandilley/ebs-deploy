@@ -92,151 +92,151 @@ Before you can begin using ebs-deploy you need to create a configration file for
 
 ```yaml
 
-    # aws account config
-    aws:
-        access_key: '...'
-        secret_key: '...'
-        region: 'us-west-1'
-        bucket: 'my-company-ebs-archives'
-        bucket_path: 'my-app'
-    
-    # application configuration
-    app:
-        versions_to_keep: 10 # the number of unused application versions to keep around
-        app_name: 'My awesome app' # the name of your application
-        description: 'An application that is awesome' # description of your app
-    
-        # configuration that applies to all environments, environment
-        # specific configuration is merged with this configuration allowing
-        # for default values that can be overriden (or added to) on
-        # an environment specific basis.  Any of the values\nodes below
-        # can also be specified in the environment specific configuration
-        # below
-        all_environments:
-            solution_stack_name: '64bit Amazon Linux running Python'
+# aws account config
+aws:
+    access_key: '...'
+    secret_key: '...'
+    region: 'us-west-1'
+    bucket: 'my-company-ebs-archives'
+    bucket_path: 'my-app'
+
+# application configuration
+app:
+    versions_to_keep: 10 # the number of unused application versions to keep around
+    app_name: 'My awesome app' # the name of your application
+    description: 'An application that is awesome' # description of your app
+
+    # configuration that applies to all environments, environment
+    # specific configuration is merged with this configuration allowing
+    # for default values that can be overriden (or added to) on
+    # an environment specific basis.  Any of the values\nodes below
+    # can also be specified in the environment specific configuration
+    # below
+    all_environments:
+        solution_stack_name: '64bit Amazon Linux running Python'
+        
+        # option_settings contain namespaced key\value pairs that are
+        # supported by Beanstalk, follows is an example of some of
+        # the values that you might want to set for a python application
+        option_settings:
+
+            'aws:autoscaling:launchconfiguration':
+                Ec2KeyName: 'mycompany-ssh-key-name'
+                InstanceType: 't1.micro'
+                SecurityGroups: 'mycompany-prod'
+
+            'aws:elasticbeanstalk:container:python':
+                WSGIPath: 'runsite.py'
+                NumProcesses: 1
+                NumThreads: 15
+
+            'aws:autoscaling:asg':
+                MinSize: 1
+                MaxSize: 5
+
+            'aws:elasticbeanstalk:container:python:staticfiles':
+                "/static/": "my_app/static/"
+
+            'aws:elb:loadbalancer':
+                SSLCertificateId: 'arn:aws:iam::XXXXXXX:server-certificate/my-company'
+                LoadBalancerHTTPSPort: 443
+
+            'aws:elb:policies':
+                Stickiness Policy: true
+
+            'aws:elasticbeanstalk:sns:topics':
+                Notification Endpoint: 'ops@mycompany.com'
+
+            'aws:elasticbeanstalk:application':
+                Application Healthcheck URL: '/'
+
+            'aws:elasticbeanstalk:application:environment':
+                AWS_ACCESS_KEY_ID: '...'
+                AWS_SECRET_KEY: '...'
+
+        # instructions on how to build the application archive
+        archive:
+            includes: # files to include, a list of regex
+            excludes: # files to exclude, a list of regex
+                - '^.gitignore$'
+                - '^\.git*'
+                - '.*\.egg-info$'
+                - '^tests.*'
+                - '.*\.zip$'
+                - '^venv.*'
+
+            # a list of files to add to the archive, follows are
+            # the two ways to dynamically add files to the archive:
+            # contet, and yaml
+            files:
             
-            # option_settings contain namespaced key\value pairs that are
-            # supported by Beanstalk, follows is an example of some of
-            # the values that you might want to set for a python application
+                # here's an example of adding a "content" file to
+                # the archive at the root of the archive called
+                # "deflate.conf" that configures apache to serve
+                # things using mod_deflate (gzip).
+                - deflate.conf:
+                    # the content node is important here
+                    content: |
+                        <Location />
+                            # Insert filter
+                            SetOutputFilter DEFLATE
+                            # Don't compress images
+                             SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png)$ no-gzip dont-vary
+                            # Make sure proxies don't deliver the wrong content
+                            Header append Vary User-Agent env=!dont-vary
+                        </Location>
+
+                # here's an example of adding a "yaml" file to
+                # the archive in the .ebextensions sub directory
+                # named "02-packages.config".  The yaml nodes that
+                # follow the "yaml" node under this will be added
+                # to the file
+                - .ebextensions/02-packages.config:
+                    # the yaml node is important here
+                    yaml:
+                        packages:
+                            yum:
+                                rubygems: ''
+                                pcre-devel: ''
+                                memcached-devel: ''
+                            rubygems:
+                                sass: ''
+
+                # another example of adding a yaml file to the archive
+                # this one tells beanstalk to run some commands on deployment
+                - .ebextensions/03-commands.config:
+                    yaml:
+                        commands:
+                            00010-timezone:
+                                command: "ln -sf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime"
+                        container_commands:
+                            00020-deflate:
+                                command: "cp deflate.conf /etc/httpd/conf.d/"
+                            00030-migrations:
+                                command: "... some db migration command here ..."
+
+    # Under the environments node is each environment and their config.
+    # Environment specific configuration is determined by first processing
+    # the all_environments config and then "overlaying" the environment
+    # specific configuration onto it.  Any number of environments can be
+    # specified
+    environments:
+
+        # the production version of the app
+        'MyCo-MyApp-Prod': 
+            cname_prefix: 'myco-myapp-prod'
             option_settings:
-    
-                'aws:autoscaling:launchconfiguration':
-                    Ec2KeyName: 'mycompany-ssh-key-name'
-                    InstanceType: 't1.micro'
-                    SecurityGroups: 'mycompany-prod'
-    
-                'aws:elasticbeanstalk:container:python':
-                    WSGIPath: 'runsite.py'
-                    NumProcesses: 1
-                    NumThreads: 15
-    
-                'aws:autoscaling:asg':
-                    MinSize: 1
-                    MaxSize: 5
-    
-                'aws:elasticbeanstalk:container:python:staticfiles':
-                    "/static/": "my_app/static/"
-    
-                'aws:elb:loadbalancer':
-                    SSLCertificateId: 'arn:aws:iam::XXXXXXX:server-certificate/my-company'
-                    LoadBalancerHTTPSPort: 443
-    
-                'aws:elb:policies':
-                    Stickiness Policy: true
-    
-                'aws:elasticbeanstalk:sns:topics':
-                    Notification Endpoint: 'ops@mycompany.com'
-    
-                'aws:elasticbeanstalk:application':
-                    Application Healthcheck URL: '/'
-    
                 'aws:elasticbeanstalk:application:environment':
-                    AWS_ACCESS_KEY_ID: '...'
-                    AWS_SECRET_KEY: '...'
-    
-            # instructions on how to build the application archive
-            archive:
-                includes: # files to include, a list of regex
-                excludes: # files to exclude, a list of regex
-                    - '^.gitignore$'
-                    - '^\.git*'
-                    - '.*\.egg-info$'
-                    - '^tests.*'
-                    - '.*\.zip$'
-                    - '^venv.*'
-    
-                # a list of files to add to the archive, follows are
-                # the two ways to dynamically add files to the archive:
-                # contet, and yaml
-                files:
-                
-                    # here's an example of adding a "content" file to
-                    # the archive at the root of the archive called
-                    # "deflate.conf" that configures apache to serve
-                    # things using mod_deflate (gzip).
-                    - deflate.conf:
-                        # the content node is important here
-                        content: |
-                            <Location />
-                                # Insert filter
-                                SetOutputFilter DEFLATE
-                                # Don't compress images
-                                 SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png)$ no-gzip dont-vary
-                                # Make sure proxies don't deliver the wrong content
-                                Header append Vary User-Agent env=!dont-vary
-                            </Location>
-    
-                    # here's an example of adding a "yaml" file to
-                    # the archive in the .ebextensions sub directory
-                    # named "02-packages.config".  The yaml nodes that
-                    # follow the "yaml" node under this will be added
-                    # to the file
-                    - .ebextensions/02-packages.config:
-                        # the yaml node is important here
-                        yaml:
-                            packages:
-                                yum:
-                                    rubygems: ''
-                                    pcre-devel: ''
-                                    memcached-devel: ''
-                                rubygems:
-                                    sass: ''
-    
-                    # another example of adding a yaml file to the archive
-                    # this one tells beanstalk to run some commands on deployment
-                    - .ebextensions/03-commands.config:
-                        yaml:
-                            commands:
-                                00010-timezone:
-                                    command: "ln -sf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime"
-                            container_commands:
-                                00020-deflate:
-                                    command: "cp deflate.conf /etc/httpd/conf.d/"
-                                00030-migrations:
-                                    command: "... some db migration command here ..."
-    
-        # Under the environments node is each environment and their config.
-        # Environment specific configuration is determined by first processing
-        # the all_environments config and then "overlaying" the environment
-        # specific configuration onto it.  Any number of environments can be
-        # specified
-        environments:
-    
-            # the production version of the app
-            'MyCo-MyApp-Prod': 
-                cname_prefix: 'myco-myapp-prod'
-                option_settings:
-                    'aws:elasticbeanstalk:application:environment':
-                        MYAPP_ENV_NAME: 'prod'
-                    'aws:autoscaling:launchconfiguration':
-                        InstanceType: 'm1.medium'
-    
-            # the QA version of the app
-            'MyCo-MyApp-QA': 
-                cname_prefix: 'myco-myapp-qa'
-                option_settings:
-                    'aws:elasticbeanstalk:application:environment':
-                        MYAPP_ENV_NAME: 'qa'
+                    MYAPP_ENV_NAME: 'prod'
+                'aws:autoscaling:launchconfiguration':
+                    InstanceType: 'm1.medium'
+
+        # the QA version of the app
+        'MyCo-MyApp-QA': 
+            cname_prefix: 'myco-myapp-qa'
+            option_settings:
+                'aws:elasticbeanstalk:application:environment':
+                    MYAPP_ENV_NAME: 'qa'
 
 ```
 
