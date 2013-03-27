@@ -33,7 +33,9 @@ Running ebs-deploy without an arguments will list the available commands:
         update
         dump
 
-Every command requires a configuration file named `ebs.config` to be present in the directory in which the command is run or by passing the `-c` or `--config-file` argument.  Documentation on the format of the configuration file can be found later in this document.  To get help on any of the commands simply run: `> ebs-deploy command --help`.
+Every command requires a configuration file named `ebs.config` to be present in the directory in which the command is run or by passing the `-c` or `--config-file` argument.  Documentation on the format of the configuration file can be found later in this document.  To get help on any of the commands simply run:
+
+    > ebs-deploy command --help
 
 ## Examples
 The following examples omit the `--config-file` argument for brevity.  If you're configuration file is not named `ebs.config` and\or does not exist in the working directory of the ebs-deploy program you will need to add the `-c` or `--config-file` argument.
