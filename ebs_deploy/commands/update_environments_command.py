@@ -22,7 +22,7 @@ def execute(helper, config, args):
 
     wait_environments = []
     for env_name in environments:
-        env = get(config, 'app.environments.'+env_name)
+        env = parse_env_config(config, env_name)
         option_settings = parse_option_settings(env.get('option_settings', {}))
         cname_prefix = env.get('cname_prefix', None)
         real_env_name = helper.environment_name_for_cname(cname_prefix)

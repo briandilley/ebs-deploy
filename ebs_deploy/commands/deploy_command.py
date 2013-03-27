@@ -24,7 +24,7 @@ def execute(helper, config, args):
 
     # upload or build an archive
     version_label = upload_application_archive(
-        helper, env_config, archive=args.archive, directory=args.directory)
+        helper, env_config, archive=args.archive, directory=args.directory, version_label=version_label)
 
     # deploy it
     helper.deploy_version(real_env_name, version_label)

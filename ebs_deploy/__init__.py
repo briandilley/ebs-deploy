@@ -64,8 +64,9 @@ def parse_env_config(config, env_name):
     env = get(config, 'app.environments.'+env_name, {})
     return merge_dict(all_env, env)
 
-def upload_application_archive(helper, env_config, archive=None, directory=None):
-    version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
+def upload_application_archive(helper, env_config, archive=None, directory=None, version_label=None):
+    if version_label is None:
+        version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
     if not archive:
         if not directory:
             directory = "."
