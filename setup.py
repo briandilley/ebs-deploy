@@ -12,7 +12,10 @@ setup(
     url='https://github.com/briandilley/ebs-deploy',
 
     # packages
-    packages=['ebs_deploy'],
+    packages=[
+        'ebs_deploy',
+        'ebs_deploy.commands'
+    ],
 
     # dependencies
     install_requires = [
