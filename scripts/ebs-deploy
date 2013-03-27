@@ -47,6 +47,7 @@ def main():
 
     # make sure we have an archive or a directory
     if not args.config_file or not os.path.exists(args.config_file):
+        out("Config file not found: "+args.config_file)
     	parser.print_help()
     	exit(-1)
 
