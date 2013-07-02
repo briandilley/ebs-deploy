@@ -7,6 +7,7 @@ from datetime import datetime
 from time import time, sleep
 import zipfile
 import os
+import subprocess
 import sys
 import yaml
 import re
@@ -67,7 +68,46 @@ def parse_env_config(config, env_name):
 def upload_application_archive(helper, env_config, archive=None, directory=None, version_label=None):
     if version_label is None:
         version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
-    if not archive:
+    archive_file_name = None
+
+    # generate the archive externally
+    if get(env_config, 'archive.generate'):
+        cmd = get(env_config, 'archive.generate.cmd')
+        output_file = get(env_config, 'archive.generate.output_file')
+        use_shell = get(env_config, 'archive.generate.use_shell', True)
+        exit_code = get(env_config, 'archive.generate.exit_code', 0)
+        if not cmd or not output_file:
+            raise Exception('Archive generation requires cmd and output_file at a minimum')
+        output_regex = None
+        try:
+            output_regex = re.compile(output_file)
+        except:
+            pass
+        result = subprocess.call(cmd, shell=use_shell)
+        if result != exit_code:
+            raise Exception('Generate command execited with code %s (expected %s)' % (result, exit_code))
+
+        if output_file and os.path.exists(output_file):
+            archive_file_name = os.path.basename(output_file)
+        else:
+            for root, dirs, files in os.walk(".", followlinks=True):
+                for f in files:
+                    fullpath = os.path.join(root, f)
+                    if fullpath.endswith(output_file):
+                        archive = fullpath
+                        archive_file_name = os.path.basename(fullpath)
+                        break
+                    elif output_regex and output_regex.match(fullpath):
+                        archive = fullpath
+                        archive_file_name = os.path.basename(fullpath)
+                        break
+                if archive:
+                    break
+            if not archive or not archive_file_name:
+                raise Exception('Unable to find expected output file matching: %s' % (output_file))
+
+    # create the archive
+    elif not archive:
         if not directory:
             directory = "."
         includes = get(env_config, 'archive.includes', [])
@@ -84,8 +124,10 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
                 return False
             return True
         archive = create_archive(directory, version_label+".zip", config=archive_files, ignore_predicate=_predicate)
-    helper.upload_archive(archive, version_label+".zip")
-    helper.create_application_version(version_label, version_label+".zip")
+        archive_file_name = version_label+".zip"
+
+    helper.upload_archive(archive, archive_file_name)
+    helper.create_application_version(version_label, archive_file_name)
     return version_label
 
 def create_archive(directory, filename, config={}, ignore_predicate=None, ignored_files=['.git', '.svn']):
