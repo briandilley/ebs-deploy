@@ -175,7 +175,7 @@ def create_archive(directory, filename, config={}, ignore_predicate=None, ignore
             else:
                 content = tree.get('content', '')
             out("Writing config file for "+str(conf))
-            zip.writestr(conf, content, zipfile.ZIP_DEFLATED)
+            zip.writestr(conf, content)
 
     zip.close()
     return filename
