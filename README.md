@@ -240,6 +240,55 @@ app:
 
 ```
 
+Here's an example of how you might use ebs-deploy to deploy a Scalatra app to beanstalk:
+
+```yaml
+aws:
+    access_key: '...'
+    secret_key: '...'
+    region: 'us-west-1'
+    bucket: 'mycomppany-apps-us-west-1'
+    bucket_path: 'Scalatra-App'
+
+app:
+    versions_to_keep: 10
+    app_name: 'Scalatra-App'
+    description: 'My Scalatra Application'
+
+    all_environments:
+        solution_stack_name: '64bit Amazon Linux running Tomcat 7'
+
+        option_settings:
+
+            'aws:autoscaling:launchconfiguration':
+                Ec2KeyName: 'mycompany'
+                InstanceType: 'm1.small'
+                SecurityGroups: 'mycompany-web'
+
+            'aws:autoscaling:asg':
+                MinSize: 1
+                MaxSize: 10
+
+            'aws:elasticbeanstalk:application':
+                Application Healthcheck URL: '/'
+
+        # instructions on how to build the application archive
+        archive:
+            generate:
+                cmd: sbt package
+                output_file: .*target/.*\.war
+
+    environments:
+
+        # the Testing version of the app
+        'Scalatra-App-Testing':
+            cname_prefix: 'scalatra-app-testing'
+
+        # the production version of the app
+        'Scalatra-App-Prod':
+            cname_prefix: 'scalatra-app-prod'
+
+```
 
 License
 -
