@@ -7,11 +7,11 @@ Installation is possible with pip and easy_install and can be done system wide o
 with pip:
 
     > easy_install pip # if you don't already have pip installed
-    > pip install git+git://github.com/briandilley/ebs-deploy.git
+    > pip install ebs-deploy
 
 with easy_install:
 
-    > easy_install git+git://github.com/briandilley/ebs-deploy.git
+    > easy_install ebs-deploy
 
 
 ## Usage
