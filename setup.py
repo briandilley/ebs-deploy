@@ -4,12 +4,13 @@ setup(
 
     # general meta
     name='ebs-deploy',
-    version='0.0.1',
+    version='1.0',
     author='Brian C. Dilley',
     author_email='brian.dilley@gmail.com',
     description='Python based command line tools for managing Amazon Elastic Beanstalk applications.',
     platforms='any',
     url='https://github.com/briandilley/ebs-deploy',
+    download_url='https://github.com/briandilley/ebs-deploy',
 
     # packages
     packages=[
