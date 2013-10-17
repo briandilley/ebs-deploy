@@ -69,6 +69,8 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
     if version_label is None:
         version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
     archive_file_name = None
+    if archive:
+        archive_file_name = os.path.basename(archive)
 
     # generate the archive externally
     if get(env_config, 'archive.generate'):
