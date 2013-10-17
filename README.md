@@ -156,6 +156,14 @@ app:
 
         # instructions on how to build the application archive
         archive:
+
+            # Generate an application archive ...        
+            generate:
+                cmd: #... command here to generate an archive file ...
+                output_file: .*target/.*\.war # a regex pattern for finding the
+                                              # file generated above
+        
+            # ... or build one from the current directory
             includes: # files to include, a list of regex
             excludes: # files to exclude, a list of regex
                 - '^.gitignore$'
