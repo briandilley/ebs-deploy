@@ -206,7 +206,7 @@ class EbsHelper(object):
         """
         self.aws            = aws
         self.ebs            = connect_to_region(aws.region, aws_access_key_id=aws.access_key, aws_secret_access_key=aws.secret_key)
-        self.s3             = S3Connection(aws.access_key, aws.secret_key, host='s3-'+aws.region+'.amazonaws.com')
+        self.s3             = S3Connection(aws.access_key, aws.secret_key, host=(lambda r: 's3.amazonaws.com' if r == 'us-east-1' else 's3-'+r+'.amazonaws.com')(aws.region))
         self.app_name       = app_name
 
     def swap_environment_cnames(self, from_env_name, to_env_name):
@@ -222,7 +222,7 @@ class EbsHelper(object):
         bucket = None
         try:
             bucket = self.s3.get_bucket(self.aws.bucket)
-            if bucket.get_location() != self.aws.region:
+            if ((self.aws.region != 'us-east-1' and self.aws.region != 'eu-west-1') and bucket.get_location() != self.aws.region) or (self.aws.region == 'us-east-1' and bucket.get_location() != '') or (self.aws.region == 'eu-west-1' and bucket.get_location() != 'EU'):
                 raise Exception("Existing bucket doesn't match region")
         except S3ResponseError:
             bucket = self.s3.create_bucket(self.aws.bucket, location=self.aws.region)
