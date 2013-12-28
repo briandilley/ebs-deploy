@@ -20,7 +20,7 @@ setup(
 
     # dependencies
     install_requires = [
-        'boto == 2.8.0',
+        'boto == 2.21.2',
         'pyyaml == 3.10'
     ],
     # additional files to include

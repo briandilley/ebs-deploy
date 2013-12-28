@@ -28,7 +28,10 @@ def execute(helper, config, args):
         real_env_name = helper.environment_name_for_cname(cname_prefix)
         helper.update_environment(real_env_name,
             description=env.get('description', None),
-            option_settings=option_settings)
+            option_settings=option_settings,
+            tier_type=env.get('tier_type'),
+            tier_name=env.get('tier_name'),
+            tier_version=env.get('tier_version'))
         wait_environments.append(real_env_name)
 
     # wait

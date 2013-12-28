@@ -114,7 +114,17 @@ app:
     # below
     all_environments:
         solution_stack_name: '64bit Amazon Linux running Python'
-        
+
+        # optional information on the tier type
+        # check the boto documentation for create_environment
+        # for an explanation on the default values.  Most
+        # configurations don't need to specify these values
+        # at all.
+        # Boto: http://docs.pythonboto.org/en/latest/ref/beanstalk.html
+        tier_name: 'WebServer'
+        tier_type: 'Standard'
+        tier_version: '1.0'
+
         # option_settings contain namespaced key\value pairs that are
         # supported by Beanstalk, follows is an example of some of
         # the values that you might want to set for a python application

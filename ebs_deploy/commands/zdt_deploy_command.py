@@ -66,7 +66,10 @@ def execute(helper, config, args):
         cname_prefix=new_env_cname,
         description=env_config.get('description', None),
         option_settings=option_settings,
-        version_label=version_label)
+        version_label=version_label,
+        tier_name=env_config.get('tier_name'),
+        tier_type=env_config.get('tier_type'),
+        tier_version=env_config.get('tier_version'))
     helper.wait_for_environments(new_env_name, status='Ready', health='Green', include_deleted=False)
 
     # swap C-Names

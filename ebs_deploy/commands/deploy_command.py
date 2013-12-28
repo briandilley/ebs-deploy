@@ -38,7 +38,10 @@ def execute(helper, config, args):
     option_settings = parse_option_settings(env.get('option_settings', {}))
     helper.update_environment(real_env_name,
         description=env.get('description', None),
-        option_settings=option_settings)
+        option_settings=option_settings,
+        tier_type=env.get('tier_type'),
+        tier_name=env.get('tier_name'),
+        tier_version=env.get('tier_version'))
 
     # wait
     if not args.dont_wait:

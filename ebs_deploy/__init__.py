@@ -277,7 +277,7 @@ class EbsHelper(object):
 
     def create_environment(self, env_name, version_label=None,
         solution_stack_name=None, cname_prefix=None, description=None,
-        option_settings=None):
+        option_settings=None, tier_name=None, tier_type=None, tier_version='1.0'):
         """
         Creates a new environment
         """
@@ -287,7 +287,10 @@ class EbsHelper(object):
             solution_stack_name=solution_stack_name,
             cname_prefix=cname_prefix,
             description=description,
-            option_settings=option_settings)
+            option_settings=option_settings,
+            tier_type=tier_type,
+            tier_name=tier_name,
+            tier_version=tier_version)
 
     def environment_exists(self, env_name):
         """
@@ -327,7 +330,7 @@ class EbsHelper(object):
         """
         self.ebs.terminate_environment(environment_name=environment_name, terminate_resources=True)
 
-    def update_environment(self, environment_name, description=None, option_settings=[]):
+    def update_environment(self, environment_name, description=None, option_settings=[], tier_type=None, tier_name=None, tier_version='1.0'):
         """
         Updates an application version
         """
@@ -339,7 +342,13 @@ class EbsHelper(object):
             if message['Severity'] == 'error':
                 ok = False
             out("["+message['Severity']+"] "+environment_name+" - '"+message['Namespace']+":"+message['OptionName']+"': "+message['Message'])
-        self.ebs.update_environment(environment_name=environment_name, description=description, option_settings=option_settings)
+        self.ebs.update_environment(
+            environment_name=environment_name,
+            description=description,
+            option_settings=option_settings,
+            tier_type=tier_type,
+            tier_name=tier_name,
+            tier_version=tier_version)
 
     def deploy_version(self, environment_name, version_label):
         """

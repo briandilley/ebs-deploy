@@ -32,7 +32,10 @@ def execute(helper, config, args):
                 solution_stack_name=env_config.get('solution_stack_name'),
                 cname_prefix=env_config.get('cname_prefix', None),
                 description=env_config.get('description', None),
-                option_settings=option_settings)
+                option_settings=option_settings,
+                tier_name=env_config.get('tier_name'),
+                tier_type=env_config.get('tier_type'),
+                tier_version=env_config.get('tier_version'))
             environments_to_wait_for_green.append(env_name)
         else:
             out("Environment "+env_name+" exists as "+actual_env_name)
