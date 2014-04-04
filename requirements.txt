@@ -1,5 +1,5 @@
 # Deployed dependencies
-boto == 2.21.2
+boto == 2.27.0
 pyyaml == 3.10
 
 # Development dependencies:

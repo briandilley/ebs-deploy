@@ -87,6 +87,15 @@ When your application is ready to be decommissioned you can use the delete_appli
 
 The application and all of it's environments will be deleted.
 
+# Environment variables
+The following environment variables affect ebs-deploy configuration but can be overriden on a per project basis in the configuration file:
+
+- **AWS_ACCESS_KEY_ID** - the aws access key id
+- **AWS_SECRET_ACCESS_KEY** - the secret access key
+- **AWS_DEFAULT_REGION** - the region
+- **AWS_BEANSTALK_BUCKET_NAME** - the bucket that beanstalk apps will be stored in
+- **AWS_BEANSTALK_BUCKET_NAME_PATH** - the path in the bucket where beanstalk apps will be stored
+
 # Configuration File Format
 Before you can begin using ebs-deploy you need to create a configration file for your application.  Configuration files are written in YAML and have the following structure:
 
@@ -94,6 +103,7 @@ Before you can begin using ebs-deploy you need to create a configration file for
 
 # aws account config
 aws:
+    # override environment variables here
     access_key: '...'
     secret_key: '...'
     region: 'us-west-1'

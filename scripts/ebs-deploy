@@ -63,11 +63,11 @@ def main():
 
     # create credentials
     aws = AwsCredentials(
-        get(config, 'aws.access_key'),
-        get(config, 'aws.secret_key'),
-        get(config, 'aws.region'),
-        get(config, 'aws.bucket'),
-        get(config, 'aws.bucket_path'))
+        get(config, 'aws.access_key',       os.environ.get('AWS_ACCESS_KEY_ID')),
+        get(config, 'aws.secret_key',       os.environ.get('AWS_SECRET_ACCESS_KEY')),
+        get(config, 'aws.region',           os.environ.get('AWS_DEFAULT_REGION')),
+        get(config, 'aws.bucket',           os.environ.get('AWS_BEANSTALK_BUCKET_NAME')),
+        get(config, 'aws.bucket_path',      os.environ.get('AWS_BEANSTALK_BUCKET_NAME_PATH')))
 
     # create helper
     helper = EbsHelper(aws, app_name=get(config, 'app.app_name'))
