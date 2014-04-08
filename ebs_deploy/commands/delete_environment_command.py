@@ -7,6 +7,9 @@ def add_arguments(parser):
     """
     parser.add_argument('-e', '--environment',
                         help='Environment name', required=True)
+    parser.add_argument('-w', '--dont-wait',
+                        help='Skip waiting for the init to finish',
+                        action='store_true')
 
 
 def execute(helper, config, args):
@@ -16,9 +19,9 @@ def execute(helper, config, args):
 
     env_config = parse_env_config(config, args.environment)
     cname_prefix = env_config.get('cname_prefix', None)
-    # env_name = args.environment
     real_env_name = helper.environment_name_for_cname(cname_prefix)
 
+    environments_to_wait_for_term = []
     environments = helper.get_environments()
 
     for env in environments:
@@ -29,9 +32,13 @@ def execute(helper, config, args):
                     + env['Status'] + ")")
             else:
                 out("Deleting environment: "+env['EnvironmentName'])
-                # helper.delete_environment(env['EnvironmentName'])
-                # environments_to_wait_for_term.append(env['EnvironmentName'])
+                helper.delete_environment(env['EnvironmentName'])
+                environments_to_wait_for_term.append(env['EnvironmentName'])
+
+    if not args.dont_wait:
+        helper.wait_for_environments(environments_to_wait_for_term,
+                                     status='Terminated',
+                                     include_deleted=True)
 
     out("Environment deleted")
-
     return 0
