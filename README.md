@@ -24,14 +24,19 @@ Running ebs-deploy without an arguments will list the available commands:
     > ebs-deploy 
     usage: ebs-deploy command [options | help]
     Where command is one of:
-        init
-        delete_application
+        list_environments
+        dump
+        delete_environment
+        zdt_deploy
         list_solution_stacks
-        rebuild
-        tail
+        delete_application
         deploy
         update
-        dump
+        rebuild
+        init
+        update_environments
+
+
 
 Every command requires a configuration file named `ebs.config` to be present in the directory in which the command is run or by passing the `-c` or `--config-file` argument.  Documentation on the format of the configuration file can be found later in this document.  To get help on any of the commands simply run:
 
