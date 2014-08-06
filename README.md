@@ -102,7 +102,7 @@ The following environment variables affect ebs-deploy configuration but can be o
 - **AWS_BEANSTALK_BUCKET_NAME_PATH** - the path in the bucket where beanstalk apps will be stored
 
 # Configuration File Format
-Before you can begin using ebs-deploy you need to create a configration file for your application.  Configuration files are written in YAML and have the following structure:
+Before you can begin using ebs-deploy you need to create a configration file for your application.  A list of available namespaces and `option_settings` for Elastic Beanstalk can be found [here](http://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options.html).  Configuration files are written in YAML and have the following structure:
 
 ```yaml
 
