@@ -277,11 +277,11 @@ class EbsHelper(object):
 
     def create_environment(self, env_name, version_label=None,
         solution_stack_name=None, cname_prefix=None, description=None,
-        option_settings=None, tier_name=None, tier_type=None, tier_version='1.0'):
+        option_settings=None, tier_name='WebServer', tier_type='Standard', tier_version='1.1'):
         """
         Creates a new environment
         """
-        out("Creating environment: "+env_name)
+        out("Creating environment: "+env_name+", tier_name:"+tier_name+", tier_type:"+tier_type)
         self.ebs.create_environment(self.app_name, env_name,
             version_label=version_label,
             solution_stack_name=solution_stack_name,
@@ -299,16 +299,6 @@ class EbsHelper(object):
         response = self.ebs.describe_environments(application_name=self.app_name, environment_names=[env_name], include_deleted=False)
         return len(response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']) > 0 \
             and response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0]['Status'] != 'Terminated'
-
-    def environment_name_for_cname(self, env_cname):
-        """
-        Returns an environment name for the given cname
-        """
-        envs = self.get_environments()
-        for env in envs:
-            if env['Status'] != 'Terminated' and env['CNAME'].lower().startswith(env_cname.lower()+'.'):
-                return env['EnvironmentName']
-        return None
 
     def rebuild_environment(self, env_name):
         """
@@ -349,6 +339,16 @@ class EbsHelper(object):
             tier_type=tier_type,
             tier_name=tier_name,
             tier_version=tier_version)
+
+    def environment_name_for_cname(self, env_cname):
+        """
+        Returns an environment name for the given cname
+        """
+        envs = self.get_environments()
+        for env in envs:
+            if env['Status'] != 'Terminated' and env['CNAME'].lower().startswith(env_cname.lower()+'.'):
+                return env['EnvironmentName']
+        return None
 
     def deploy_version(self, environment_name, version_label):
         """

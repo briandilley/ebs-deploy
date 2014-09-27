@@ -25,8 +25,7 @@ def execute(helper, config, args):
     for env_name, env_config in get(config, 'app.environments').items():
         environment_names.append(env_name)
         env_config = parse_env_config(config, env_name)
-        actual_env_name = helper.environment_name_for_cname(env_config.get('cname_prefix', None))
-        if not actual_env_name:
+        if not helper.environment_exists(env_name):
             option_settings = parse_option_settings(env_config.get('option_settings', {}))
             helper.create_environment(env_name,
                 solution_stack_name=env_config.get('solution_stack_name'),
@@ -38,7 +37,7 @@ def execute(helper, config, args):
                 tier_version=env_config.get('tier_version'))
             environments_to_wait_for_green.append(env_name)
         else:
-            out("Environment "+env_name+" exists as "+actual_env_name)
+            out("Environment "+env_name)
 
     # get the environments
     environments_to_wait_for_term = []

@@ -18,14 +18,11 @@ def execute(helper, config, args):
     """
 
     env_config = parse_env_config(config, args.environment)
-    cname_prefix = env_config.get('cname_prefix', None)
-    real_env_name = helper.environment_name_for_cname(cname_prefix)
-
     environments_to_wait_for_term = []
     environments = helper.get_environments()
 
     for env in environments:
-        if env['EnvironmentName'] == real_env_name:
+        if env['EnvironmentName'] == args.environment:
             if env['Status'] != 'Ready':
                 out("Unable to delete " + env['EnvironmentName']
                     + " because it's not in status Ready ("

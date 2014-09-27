@@ -16,18 +16,17 @@ def execute(helper, config, args):
     env_config = parse_env_config(config, args.environment)
     cname_prefix = env_config.get('cname_prefix', None)
     env_name = args.environment
-    real_env_name = helper.environment_name_for_cname(cname_prefix)
 
     # change version
     if args.version_label:
-        helper.deploy_version(real_env_name, args.version_label)
+        helper.deploy_version(env_name, args.version_label)
         if not args.dont_wait:
-            helper.wait_for_environments(real_env_name, status='Ready', version_label=args.version_label)
+            helper.wait_for_environments(env_name, status='Ready', version_label=args.version_label)
 
     # update it
     env = parse_env_config(config, env_name)
     option_settings = parse_option_settings(env.get('option_settings', {}))
-    helper.update_environment(real_env_name,
+    helper.update_environment(env_name,
         description=env.get('description', None),
         option_settings=option_settings,
         tier_type=env.get('tier_type'),
@@ -36,7 +35,7 @@ def execute(helper, config, args):
 
     # wait
     if not args.dont_wait:
-        helper.wait_for_environments(real_env_name, health='Green', status='Ready', version_label=args.version_label)
+        helper.wait_for_environments(env_name, health='Green', status='Ready', version_label=args.version_label)
 
     # delete unused
     helper.delete_unused_versions(versions_to_keep=int( get(config, 'app.versions_to_keep', 10) ))

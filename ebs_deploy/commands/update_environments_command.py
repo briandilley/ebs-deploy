@@ -24,15 +24,13 @@ def execute(helper, config, args):
     for env_name in environments:
         env = parse_env_config(config, env_name)
         option_settings = parse_option_settings(env.get('option_settings', {}))
-        cname_prefix = env.get('cname_prefix', None)
-        real_env_name = helper.environment_name_for_cname(cname_prefix)
-        helper.update_environment(real_env_name,
+        helper.update_environment(env_name,
             description=env.get('description', None),
             option_settings=option_settings,
             tier_type=env.get('tier_type'),
             tier_name=env.get('tier_name'),
             tier_version=env.get('tier_version'))
-        wait_environments.append(real_env_name)
+        wait_environments.append(env_name)
 
     # wait
     if not args.dont_wait:
