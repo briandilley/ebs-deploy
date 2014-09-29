@@ -7,6 +7,7 @@ def add_arguments(parser):
     """
     parser.add_argument('-w', '--dont-wait', help='Skip waiting for the init to finish', action='store_true')
     parser.add_argument('-d', '--delete', help='Delete unknown environments', action='store_true')
+    parser.add_argument('-l', '--version-label', help='The name of the application version to deploy', default=None)
 
 def execute(helper, config, args):
     """
@@ -34,7 +35,8 @@ def execute(helper, config, args):
                 option_settings=option_settings,
                 tier_name=env_config.get('tier_name'),
                 tier_type=env_config.get('tier_type'),
-                tier_version=env_config.get('tier_version'))
+                tier_version=env_config.get('tier_version'),
+                version_label=args.version_label)
             environments_to_wait_for_green.append(env_name)
         else:
             out("Environment "+env_name)
