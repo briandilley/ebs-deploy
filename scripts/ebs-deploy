@@ -36,7 +36,6 @@ def main():
     except AttributeError:
         pass
 
-
     # check for help
     if len(sys.argv) == 3 and sys.argv[2]=='help':
         parser.print_help()
