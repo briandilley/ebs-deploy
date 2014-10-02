@@ -106,7 +106,7 @@ Before you can begin using ebs-deploy you need to create a configration file for
 
 ### Keys and other secret information
 
-Keys and other secret information that should not be checked into source control can be added to the configuration file via environment variables. String with the format of `${VARIABLE}` will be replaced with the contents of `VARIABLE`. This is helpful for AWS access keys and passwords.
+Keys and other secret information that should not be checked into source control can be added to the configuration file via environment variables. Strings with the format of `${VARIABLE}` will be replaced with the contents of `VARIABLE`. This is helpful for AWS access keys and passwords.
 
 ### Structure
 
