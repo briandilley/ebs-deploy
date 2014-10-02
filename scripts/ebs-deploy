@@ -7,9 +7,6 @@ import os
 from ebs_deploy import AwsCredentials, EbsHelper, get, out
 from ebs_deploy.commands import get_command, usage
 
-def usage_and_exit():
-    usage()
-    exit(-1)
 
 # the commands
 def main():
@@ -19,7 +16,8 @@ def main():
 
     # bail if we don't have a command
     if len(sys.argv)<2:
-        usage_and_exit()
+        usage()
+        exit(-1)
 
     # get the command
     command_name = sys.argv[1]
