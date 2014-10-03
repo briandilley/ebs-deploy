@@ -1,15 +1,18 @@
 
+import time
 from ebs_deploy import out, get, parse_env_config, parse_option_settings, upload_application_archive
 
 def add_arguments(parser):
     """
     adds arguments for the deploy command
     """
-    parser.add_argument('-e', '--environment',      help='Environment name', required=True)
-    parser.add_argument('-w', '--dont-wait',        help='Skip waiting', action='store_true')
-    parser.add_argument('-a', '--archive',          help='Archive file', required=False)
-    parser.add_argument('-d', '--directory',        help='Directory', required=False)
-    parser.add_argument('-l', '--version-label',    help='Version label', required=False)
+    parser.add_argument('-e', '--environment',          help='Environment name', required=True)
+    parser.add_argument('-w', '--dont-wait',            help='Skip waiting', action='store_true')
+    parser.add_argument('-a', '--archive',              help='Archive file', required=False)
+    parser.add_argument('-d', '--directory',            help='Directory', required=False)
+    parser.add_argument('-l', '--version-label',        help='Version label', required=False)
+    parser.add_argument('-t', '--termination-delay',    help='Delay termination of old environment by this number of seconds', 
+                                                        type=int, required=False)
 
 def execute(helper, config, args):
     """
@@ -78,6 +81,9 @@ def execute(helper, config, args):
     helper.wait_for_environments([old_env_name, new_env_name], status='Ready', include_deleted=False)
 
     # delete the old environmnet
+    if args.termination_delay:
+        out("Termination delay specified, sleeping for {} seconds...".format(args.termination_delay))
+        time.sleep(args.termination_delay)
     helper.delete_environment(old_env_name)
 
     # delete unused
