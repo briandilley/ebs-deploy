@@ -54,9 +54,11 @@ def main():
         set_stream_logger('boto')
 
     # load config
-    f = open(args.config_file, 'r')
-    config = yaml.load(f)
-    f.close()
+    #f = open(args.config_file, 'r')
+    with open(args.config_file, 'r') as f:
+        contents = f.read()
+    contents_with_environment_variables_expanded = os.path.expandvars(contents)
+    config = yaml.load(contents_with_environment_variables_expanded)
 
     # create credentials
     aws = AwsCredentials(
