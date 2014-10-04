@@ -7,7 +7,8 @@ setup(
     version='1.6',
     author='Brian C. Dilley',
     author_email='brian.dilley@gmail.com',
-    description='Python based command line tools for managing Amazon Elastic Beanstalk applications.',
+    description='Python based command line tools for managing '
+                'Amazon Elastic Beanstalk applications.',
     platforms='any',
     url='https://github.com/briandilley/ebs-deploy',
     download_url='https://github.com/briandilley/ebs-deploy',
@@ -19,9 +20,9 @@ setup(
     ],
 
     # dependencies
-    install_requires = [
-        'boto == 2.32.0',
-        'pyyaml == 3.10'
+    install_requires=[
+        'boto>=2.32.0',
+        'pyyaml>=3.10'
     ],
     # additional files to include
     include_package_data=True,

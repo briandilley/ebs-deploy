@@ -403,7 +403,7 @@ class EbsHelper(object):
         environment_names = environment_names[:]
 
         # print some stuff
-        s = "Waiting for environemnt(s) "+(", ".join(environment_names))+" to"
+        s = "Waiting for environment(s) "+(", ".join(environment_names))+" to"
         if health is not None:
             s = s +" have health "+health
         else:
@@ -461,4 +461,4 @@ class EbsHelper(object):
             # check th etime
             elapsed = time()-started
             if elapsed > wait_time_secs:
-                raise Exception("Wait time for environemnt(s) "+(" and ".join(environment_names))+" to be "+health+" expired")
+                raise Exception("Wait time for environment(s) "+(" and ".join(environment_names))+" to be "+health+" expired")
