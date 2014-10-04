@@ -5,31 +5,28 @@ import yaml
 import sys
 import os
 from ebs_deploy import AwsCredentials, EbsHelper, get, out
-from ebs_deploy.commands import get_command_names, get_command
+from ebs_deploy.commands import get_command, usage
+
 
 # the commands
 def main():
     """
     the main
     """
-    commands = get_command_names()
 
     # bail if we don't have a command
     if len(sys.argv)<2:
-        out("usage: ebs-deploy command [options | help]")
-        out("Where command is one of:")
-        for cmd in commands:
-            out("    "+cmd)
+        usage()
         exit(-1)
 
     # get the command
     command_name = sys.argv[1]
-    command = get_command(command_name)
 
     # setup arguments
     parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk', usage='%(prog)s '+command_name+' [options]')
     parser.add_argument('-c', '--config-file', help='Configuration file', default='ebs.config')
     parser.add_argument('-v', '--verbose', help='Enable debug logging', action='store_true')
+    command = get_command(command_name)
 
     # let commands add arguments
     try:
