@@ -87,7 +87,7 @@ For an actively used application or an application where any amount of downtime 
 Zero downtime deployment takes a while because it creates an entirely new environment, deploys the new application version to it, swaps the cnames with the currently running environment and then terminates the old environment.
 
 ### Swap URLS
-If you need to do zero-downtime deployment, but want to run tests before switching to the new environment, you can deploy to a new environment, run your tests, then swap URLs in a  separate step:
+If you need to do zero-downtime deployment, but want to run tests before switching to the new environment, you can deploy to a new environment, run your tests, then swap URLs in a separate step:
 
     > ebs-deploy swap_urls --old-environment MyCo-MyApp-0 --new-environment MyCo-MyApp-1
 
