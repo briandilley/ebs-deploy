@@ -461,4 +461,4 @@ class EbsHelper(object):
             # check th etime
             elapsed = time()-started
             if elapsed > wait_time_in_seconds:
-        raise Exception("Wait time for environment(s) "+(" and ".join(environment_names))+" to be "+health+" expired")
+                raise Exception("Wait time for environment(s) "+(" and ".join(environment_names))+" to be "+health+" expired")
