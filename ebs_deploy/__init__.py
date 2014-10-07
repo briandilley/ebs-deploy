@@ -391,7 +391,7 @@ class EbsHelper(object):
                 sleep(2)
 
 
-    def wait_for_environments(self, environment_names, health=None, status=None, version_label=None, include_deleted=True, wait_time_secs=600):
+    def wait_for_environments(self, environment_names, health=None, status=None, version_label=None, include_deleted=True, wait_time_in_seconds=600):
         """
         Waits for an environment to have the given version_label
         and to be in the green state
@@ -460,5 +460,5 @@ class EbsHelper(object):
 
             # check th etime
             elapsed = time()-started
-            if elapsed > wait_time_secs:
-                raise Exception("Wait time for environment(s) "+(" and ".join(environment_names))+" to be "+health+" expired")
+            if elapsed > wait_time_in_seconds:
+        raise Exception("Wait time for environment(s) "+(" and ".join(environment_names))+" to be "+health+" expired")
