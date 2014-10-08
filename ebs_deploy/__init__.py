@@ -403,7 +403,7 @@ class EbsHelper(object):
         environment_names = environment_names[:]
 
         # print some stuff
-        s = "Waiting for environment(s) "+(", ".join(environment_names))+" to"
+        s = "Waiting {} second for environment(s) ".format(wait_time_in_seconds) + (", ".join(environment_names))+" to"
         if health is not None:
             s = s +" have health "+health
         else:

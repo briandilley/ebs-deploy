@@ -11,8 +11,8 @@ def add_arguments(parser):
     parser.add_argument('-a', '--archive', help='Archive file', required=False)
     parser.add_argument('-d', '--directory', help='Directory', required=False)
     parser.add_argument('-l', '--version-label', help='Version label', required=False)
-    parser.add_argument('-s', '--wait-time', help='Seconds to wait for environment to transition to green state',
-                        type=int, required=False)
+    parser.add_argument('-s', '--wait-time', help='Seconds to wait for environment to transition to green state, default is 600',
+                        type=int, required=False, default=600)
     parser.add_argument('-t', '--termination-delay',
                         help='Delay termination of old environment by this number of seconds',
                         type=int, required=False)
@@ -82,10 +82,7 @@ def execute(helper, config, args):
     # swap C-Names
     out("Swapping environment cnames")
     helper.swap_environment_cnames(old_env_name, new_env_name)
-    wait_time_in_seconds = 600
-    if args.wait_time:
-        wait_time_in_seconds = args.wait_time
-    out("Waiting for {} seconds for environment to transition to green state...".format(wait_time_in_seconds))
+    wait_time_in_seconds = args.wait_time
     helper.wait_for_environments([old_env_name, new_env_name], status='Ready', include_deleted=False,
                                  wait_time_in_seconds=wait_time_in_seconds)
 
