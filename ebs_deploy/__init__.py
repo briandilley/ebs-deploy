@@ -448,7 +448,7 @@ class EbsHelper(object):
                 break
 
             # wait
-            sleep(5)
+            sleep(10)
 
             # # get the env
             environments = self.ebs.describe_environments(
