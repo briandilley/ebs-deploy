@@ -236,10 +236,7 @@ class EbsHelper(object):
         bucket = None
         try:
             bucket = self.s3.get_bucket(self.aws.bucket)
-            if ((
-                        self.aws.region != 'us-east-1' and self.aws.region != 'eu-west-1') and bucket.get_location() != self.aws.region) or (
-                    self.aws.region == 'us-east-1' and bucket.get_location() != '') or (
-                    self.aws.region == 'eu-west-1' and bucket.get_location() != 'EU'):
+            if ((self.aws.region != 'us-east-1' and self.aws.region != 'eu-west-1') and bucket.get_location() != self.aws.region) or (self.aws.region == 'us-east-1' and bucket.get_location() != '') or (self.aws.region == 'eu-west-1' and bucket.get_location() != 'eu-west-1'):
                 raise Exception("Existing bucket doesn't match region")
         except S3ResponseError:
             bucket = self.s3.create_bucket(self.aws.bucket, location=self.aws.region)
