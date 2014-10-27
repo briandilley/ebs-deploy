@@ -157,7 +157,7 @@ def create_archive(directory, filename, config={}, ignore_predicate=None, ignore
             fullpath = os.path.join(root, f)
             archive_name = os.path.join(archive_root, f)
 
-            # ignore the file we're createing
+            # ignore the file we're creating
             if filename in fullpath:
                 continue
 
@@ -180,7 +180,6 @@ def create_archive(directory, filename, config={}, ignore_predicate=None, ignore
     # add config
     for conf in config:
         for conf, tree in conf.items():
-            content = None
             if tree.has_key('yaml'):
                 content = yaml.dump(tree['yaml'], default_flow_style=False)
             else:
@@ -204,7 +203,7 @@ class AwsCredentials:
         self.region = region
         self.bucket_path = bucket_path
         if not self.bucket_path.endswith('/'):
-            self.bucket_path = self.bucket_path + '/'
+            self.bucket_path += '/'
 
 
 class EbsHelper(object):
@@ -217,7 +216,8 @@ class EbsHelper(object):
         Creates the EbsHelper
         """
         self.aws = aws
-        self.ebs = connect_to_region(aws.region, aws_access_key_id=aws.access_key, aws_secret_access_key=aws.secret_key)
+        self.ebs = connect_to_region(aws.region, aws_access_key_id=aws.access_key,
+                                     aws_secret_access_key=aws.secret_key)
         self.s3 = S3Connection(aws.access_key, aws.secret_key, host=(
             lambda r: 's3.amazonaws.com' if r == 'us-east-1' else 's3-' + r + '.amazonaws.com')(aws.region))
         self.app_name = app_name
@@ -233,13 +233,12 @@ class EbsHelper(object):
         """
         Uploads an application archive version to s3
         """
-        bucket = None
         try:
             bucket = self.s3.get_bucket(self.aws.bucket)
             if ((
-                            self.aws.region != 'us-east-1' and self.aws.region != 'eu-west-1') and bucket.get_location() != self.aws.region) or (
-                            self.aws.region == 'us-east-1' and bucket.get_location() != '') or (
-                            self.aws.region == 'eu-west-1' and bucket.get_location() != 'eu-west-1'):
+                  self.aws.region != 'us-east-1' and self.aws.region != 'eu-west-1') and bucket.get_location() != self.aws.region) or (
+                  self.aws.region == 'us-east-1' and bucket.get_location() != '') or (
+                  self.aws.region == 'eu-west-1' and bucket.get_location() != 'eu-west-1'):
                 raise Exception("Existing bucket doesn't match region")
         except S3ResponseError:
             bucket = self.s3.create_bucket(self.aws.bucket, location=self.aws.region)
@@ -265,7 +264,6 @@ class EbsHelper(object):
         stacks = self.ebs.list_available_solution_stacks()
         return stacks['ListAvailableSolutionStacksResponse']['ListAvailableSolutionStacksResult']['SolutionStacks']
 
-
     def create_application(self, description=None):
         """
         Creats an application and sets the helpers current
@@ -273,7 +271,6 @@ class EbsHelper(object):
         """
         out("Creating application " + self.app_name)
         self.ebs.create_application(self.app_name, description=description)
-
 
     def delete_application(self):
         """
@@ -283,14 +280,12 @@ class EbsHelper(object):
         out("Deleting application " + self.app_name)
         self.ebs.delete_application(self.app_name, terminate_env_by_force=True)
 
-
     def application_exists(self):
         """
         Returns whether or not the given app_name exists
         """
         response = self.ebs.describe_applications(application_names=[self.app_name])
         return len(response['DescribeApplicationsResponse']['DescribeApplicationsResult']['Applications']) > 0
-
 
     def create_environment(self, env_name, version_label=None,
                            solution_stack_name=None, cname_prefix=None, description=None,
@@ -415,7 +410,6 @@ class EbsHelper(object):
                                                     version_label=version['VersionLabel'])
                 sleep(2)
 
-
     def wait_for_environments(self, environment_names, health=None, status=None, version_label=None,
                               include_deleted=True, wait_time_secs=600):
         """
@@ -431,13 +425,13 @@ class EbsHelper(object):
         # print some stuff
         s = "Waiting for environment(s) " + (", ".join(environment_names)) + " to"
         if health is not None:
-            s = s + " have health " + health
+            s += " have health " + health
         else:
-            s = s + " have any health"
+            s += " have any health"
         if version_label is not None:
-            s = s + " and have version " + version_label
+            s += " and have version " + version_label
         if status is not None:
-            s = s + " and have status " + status
+            s += " and have status " + status
         out(s)
 
         started = time()
@@ -451,14 +445,16 @@ class EbsHelper(object):
 
             # # get the env
             environments = self.ebs.describe_environments(
-                application_name=self.app_name, environment_names=environment_names, include_deleted=include_deleted)
+                application_name=self.app_name,
+                environment_names=environment_names,
+                include_deleted=include_deleted)
+
             environments = environments['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']
             if len(environments) <= 0:
                 raise Exception("Couldn't find any environments")
 
             # loop through and wait
             for env in environments[:]:
-                heathy = env['Health'] == health
                 env_name = env['EnvironmentName']
 
                 # the message
@@ -476,6 +472,10 @@ class EbsHelper(object):
                     good_to_go = good_to_go and str(env['Status']) == status
                 if version_label is not None:
                     good_to_go = good_to_go and str(env['VersionLabel']) == version_label
+
+                if env['Status'] == 'Ready' and env['Health'] == 'Ready':
+                    out('Deploy failed')
+                    raise Exception('Ready and read')
 
                 # log it
                 if good_to_go:
