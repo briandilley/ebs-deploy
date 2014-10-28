@@ -10,7 +10,8 @@ def add_arguments(parser):
     parser.add_argument('-a', '--archive', help='Archive file', required=False)
     parser.add_argument('-d', '--directory', help='Directory', required=False)
     parser.add_argument('-l', '--version-label', help='Version label', required=False)
-    parser.add_argument('-f', '--log-events-to-file', help='Log events to file', required=False)
+    parser.add_argument('-f', '--log-events-to-file', help='Log events to file',
+                        required=False, action='store_true')
 
 
 def execute(helper, config, args):
