@@ -411,7 +411,7 @@ class EbsHelper(object):
                 sleep(2)
 
     def wait_for_environments(self, environment_names, health=None, status=None, version_label=None,
-                              include_deleted=True, wait_time_secs=600):
+                              include_deleted=True, wait_time_secs=300):
         """
         Waits for an environment to have the given version_label
         and to be in the green state
@@ -473,9 +473,9 @@ class EbsHelper(object):
                 if version_label is not None:
                     good_to_go = good_to_go and str(env['VersionLabel']) == version_label
 
-                if env['Status'] == 'Ready' and env['Health'] == 'Ready':
+                if env['Status'] == 'Ready' and env['Health'] == 'Red':
                     out('Deploy failed')
-                    raise Exception('Ready and read')
+                    raise Exception('Ready and red')
 
                 # log it
                 if good_to_go:
