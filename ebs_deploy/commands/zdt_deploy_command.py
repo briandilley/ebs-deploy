@@ -11,8 +11,10 @@ def add_arguments(parser):
     parser.add_argument('-a', '--archive',              help='Archive file', required=False)
     parser.add_argument('-d', '--directory',            help='Directory', required=False)
     parser.add_argument('-l', '--version-label',        help='Version label', required=False)
-    parser.add_argument('-s', '--wait-time',            help='Seconds to wait for environment to transition to green state, default is 600', type=int, required=False, default=600)
-    parser.add_argument('-t', '--termination-delay',    help='Delay termination of old environment by this number of seconds', type=int, required=False)
+    parser.add_argument('-s', '--wait-time',            help='Seconds to wait for environment to transition to green state, default is 600',
+                                                        type=int, required=False, default=600)
+    parser.add_argument('-t', '--termination-delay',    help='Delay termination of old environment by this number of seconds',
+                                                        type=int, required=False)
 
 
 def execute(helper, config, args):
