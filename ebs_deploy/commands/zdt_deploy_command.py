@@ -26,8 +26,6 @@ def execute(helper, config, args):
     version_label = args.version_label
     archive = args.archive
 
-    out("args: {}".format(args))
-
     # get the environment configuration
     env_config = parse_env_config(config, args.environment)
     option_settings = parse_option_settings(env_config.get('option_settings', {}))
