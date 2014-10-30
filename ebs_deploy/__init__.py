@@ -67,7 +67,7 @@ def parse_env_config(config, env_name):
     Parses an environment config
     """
     all_env = get(config, 'app.all_environments', {})
-    env = get(config, 'app.environments.' + env_name, {})
+    env = get(config, 'app.environments.' + str(env_name), {})
     return merge_dict(all_env, env)
 
 
@@ -132,9 +132,8 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
                         return True
                 return False
             return True
-
-        archive = create_archive(directory, version_label + ".zip", config=archive_files, ignore_predicate=_predicate)
-        archive_file_name = version_label + ".zip"
+        archive = create_archive(directory, str(version_label) + ".zip", config=archive_files, ignore_predicate=_predicate)
+        archive_file_name = str(version_label) + ".zip"
 
     helper.upload_archive(archive, archive_file_name)
     helper.create_application_version(version_label, archive_file_name)
@@ -150,7 +149,7 @@ def create_archive(directory, filename, config={}, ignore_predicate=None, ignore
     root_len = len(os.path.abspath(directory))
 
     # create it
-    out("Creating archive: " + filename)
+    out("Creating archive: " + str(filename))
     for root, dirs, files in os.walk(directory, followlinks=True):
         archive_root = os.path.abspath(root)[root_len + 1:]
         for f in files:
@@ -165,16 +164,16 @@ def create_archive(directory, filename, config={}, ignore_predicate=None, ignore
             if ignored_files is not None:
                 for name in ignored_files:
                     if fullpath.endswith(name):
-                        out("Skipping: " + name)
+                        out("Skipping: " + str(name))
                         continue
 
             # do predicate
             if ignore_predicate is not None:
                 if not ignore_predicate(archive_name):
-                    out("Skipping: " + archive_name)
+                    out("Skipping: " + str(archive_name))
                     continue
 
-            out("Adding: " + archive_name)
+            out("Adding: " + str(archive_name))
             zip.write(fullpath, archive_name, zipfile.ZIP_DEFLATED)
 
     # add config
@@ -269,7 +268,7 @@ class EbsHelper(object):
         Creats an application and sets the helpers current
         app_name to the created application
         """
-        out("Creating application " + self.app_name)
+        out("Creating application " + str(self.app_name))
         self.ebs.create_application(self.app_name, description=description)
 
     def delete_application(self):
@@ -277,7 +276,7 @@ class EbsHelper(object):
         Creats an application and sets the helpers current
         app_name to the created application
         """
-        out("Deleting application " + self.app_name)
+        out("Deleting application " + str(self.app_name))
         self.ebs.delete_application(self.app_name, terminate_env_by_force=True)
 
     def application_exists(self):
@@ -293,7 +292,7 @@ class EbsHelper(object):
         """
         Creates a new environment
         """
-        out("Creating environment: " + env_name + ", tier_name:" + tier_name + ", tier_type:" + tier_type)
+        out("Creating environment: " + str(env_name) + ", tier_name:" + str(tier_name) + ", tier_type:" + str(tier_type))
         self.ebs.create_environment(self.app_name, env_name,
                                     version_label=version_label,
                                     solution_stack_name=solution_stack_name,
@@ -318,7 +317,7 @@ class EbsHelper(object):
         """
         Rebuilds an environment
         """
-        out("Rebuilding " + env_name)
+        out("Rebuilding " + str(env_name))
         self.ebs.rebuild_environment(environment_name=env_name)
 
     def get_environments(self):
@@ -339,7 +338,7 @@ class EbsHelper(object):
         """
         Updates an application version
         """
-        out("Updating environment: " + environment_name)
+        out("Updating environment: " + str(environment_name))
         messages = self.ebs.validate_configuration_settings(self.app_name, option_settings,
                                                             environment_name=environment_name)
         messages = messages['ValidateConfigurationSettingsResponse']['ValidateConfigurationSettingsResult']['Messages']
@@ -347,8 +346,8 @@ class EbsHelper(object):
         for message in messages:
             if message['Severity'] == 'error':
                 ok = False
-            out("[" + message['Severity'] + "] " + environment_name + " - '" + message['Namespace'] + ":" + message[
-                'OptionName'] + "': " + message['Message'])
+            out("[" + message['Severity'] + "] " + str(environment_name) + " - '" \
+                + message['Namespace'] + ":" + message['OptionName'] + "': " + message['Message'])
         self.ebs.update_environment(
             environment_name=environment_name,
             description=description,
@@ -371,16 +370,16 @@ class EbsHelper(object):
         """
         Deploys a version to an environment
         """
-        out("Deploying " + version_label + " to " + environment_name)
+        out("Deploying " + str(version_label) + " to " + str(environment_name))
         self.ebs.update_environment(environment_name=environment_name, version_label=version_label)
 
     def create_application_version(self, version_label, key):
         """
         Creates an application version
         """
-        out("Creating application version " + version_label + " for " + key)
-        self.ebs.create_application_version(self.app_name, version_label, s3_bucket=self.aws.bucket,
-                                            s3_key=self.aws.bucket_path + key)
+        out("Creating application version " + str(version_label) + " for " + str(key))
+        self.ebs.create_application_version(self.app_name, version_label,
+                                            s3_bucket=self.aws.bucket, s3_key=self.aws.bucket_path+key)
 
     def delete_unused_versions(self, versions_to_keep=10):
         """
