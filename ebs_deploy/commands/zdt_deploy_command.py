@@ -67,19 +67,6 @@ def execute(helper, config, args):
 
     # create the new environment
     helper.create_environment(new_env_name,
-<<<<<<< HEAD
-        solution_stack_name=env_config.get('solution_stack_name'),
-        cname_prefix=new_env_cname,
-        description=env_config.get('description', None),
-        option_settings=option_settings,
-        version_label=version_label,
-        tier_name=env_config.get('tier_name'),
-        tier_type=env_config.get('tier_type'),
-        tier_version=env_config.get('tier_version'))
-    wait_time_in_seconds = args.wait_time
-    helper.wait_for_environments(new_env_name, status='Ready', health='Green', include_deleted=False,
-        wait_time_in_seconds=wait_time_in_seconds)
-=======
                               solution_stack_name=env_config.get('solution_stack_name'),
                               cname_prefix=new_env_cname,
                               description=env_config.get('description', None),
@@ -89,7 +76,6 @@ def execute(helper, config, args):
                               tier_type=env_config.get('tier_type'),
                               tier_version=env_config.get('tier_version'))
     helper.wait_for_environments(new_env_name, status='Ready', health='Green', include_deleted=False)
->>>>>>> upstream/master
 
     # swap C-Names
     out("Swapping environment cnames")
