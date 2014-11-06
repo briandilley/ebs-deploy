@@ -13,6 +13,9 @@ import yaml
 import re
 
 
+MAX_RED_SAMPLES = 20
+
+
 def out(message):
     """
     print alias
@@ -409,6 +412,15 @@ class EbsHelper(object):
                                                     version_label=version['VersionLabel'])
                 sleep(2)
 
+    def check_red_count_and_increment_or_fail(self, env):
+        if env.has_key('RedCount'):
+            env['RedCount'] += 1
+            if env['RedCount'] > MAX_RED_SAMPLES:
+                out('Deploy failed')
+                raise Exception('Ready and red')
+        else:
+            env['RedCount'] = 0
+
     def wait_for_environments(self, environment_names, health=None, status=None, version_label=None,
                               include_deleted=True, wait_time_secs=300):
         """
@@ -473,8 +485,7 @@ class EbsHelper(object):
                     good_to_go = good_to_go and str(env['VersionLabel']) == version_label
 
                 if env['Status'] == 'Ready' and env['Health'] == 'Red':
-                    out('Deploy failed')
-                    raise Exception('Ready and red')
+                    self.check_red_count_and_increment_or_fail(env)
 
                 # log it
                 if good_to_go:
