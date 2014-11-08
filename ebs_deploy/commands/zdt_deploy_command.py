@@ -30,12 +30,6 @@ def execute(helper, config, args):
     option_settings = parse_option_settings(env_config.get('option_settings', {}))
     cname_prefix = env_config.get('cname_prefix', None)
 
-    # find existing environment name
-    old_env_name = helper.environment_name_for_cname(cname_prefix)
-    if old_env_name is None:
-        raise Exception("Unable to find current environment with cname: " + cname_prefix)
-    out("Current environment name is " + old_env_name)
-
     # find an available environment name
     out("Determining new environment name...")
     new_env_name = None
@@ -80,6 +74,12 @@ def execute(helper, config, args):
     wait_time_secs = args.wait_time
     helper.wait_for_environments(new_env_name, status='Ready', health='Green', include_deleted=False,
         wait_time_secs=wait_time_secs)
+
+    # find existing environment name
+    old_env_name = helper.environment_name_for_cname(cname_prefix)
+    if old_env_name is None:
+        raise Exception("Unable to find current environment with cname: " + cname_prefix)
+    out("Current environment name is " + old_env_name)
 
     # swap C-Names
     out("Swapping environment cnames")
