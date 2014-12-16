@@ -373,6 +373,13 @@ class EbsHelper(object):
         out("Deploying " + str(version_label) + " to " + str(environment_name))
         self.ebs.update_environment(environment_name=environment_name, version_label=version_label)
 
+    def get_versions(self):
+        """
+        Returns the versions available
+        """
+        response = self.ebs.describe_application_versions(application_name=self.app_name)
+        return response['DescribeApplicationVersionsResponse']['DescribeApplicationVersionsResult']['ApplicationVersions']
+
     def create_application_version(self, version_label, key):
         """
         Creates an application version
