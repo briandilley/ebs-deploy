@@ -471,11 +471,7 @@ class EbsHelper(object):
                     good_to_go = good_to_go and str(env['Status']) == status
                 if version_label is not None:
                     good_to_go = good_to_go and str(env['VersionLabel']) == version_label
-
-                if env['Status'] == 'Ready' and env['Health'] == 'Red':
-                    out('Deploy failed')
-                    raise Exception('Ready and red')
-
+                    
                 # log it
                 if good_to_go:
                     out(msg + " ... done")
