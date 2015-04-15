@@ -32,6 +32,7 @@ Running ebs-deploy without arguments will list the available commands:
         init
         list_environments
         list_solution_stacks
+        list_versions
         rebuild
         swap_urls
         update
