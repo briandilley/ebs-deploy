@@ -210,7 +210,7 @@ class EbsHelper(object):
     Class for helping with ebs
     """
 
-    def __init__(self, aws, app_name=None):
+    def __init__(self, aws, wait_time_secs, app_name=None,):
         """
         Creates the EbsHelper
         """
@@ -220,6 +220,7 @@ class EbsHelper(object):
         self.s3 = S3Connection(aws.access_key, aws.secret_key, host=(
             lambda r: 's3.amazonaws.com' if r == 'us-east-1' else 's3-' + r + '.amazonaws.com')(aws.region))
         self.app_name = app_name
+        self.wait_time_secs = wait_time_secs
 
     def swap_environment_cnames(self, from_env_name, to_env_name):
         """
@@ -417,7 +418,7 @@ class EbsHelper(object):
                 sleep(2)
 
     def wait_for_environments(self, environment_names, health=None, status=None, version_label=None,
-                              include_deleted=True, wait_time_secs=300):
+                              include_deleted=True):
         """
         Waits for an environment to have the given version_label
         and to be in the green state
@@ -492,7 +493,7 @@ class EbsHelper(object):
 
             # check the time
             elapsed = time() - started
-            if elapsed > wait_time_secs:
+            if elapsed > self.wait_time_secs:
                 message = "Wait time for environment(s) {environments} to be {health} expired".format(
                     environments=" and ".join(environment_names), health=(health or "Green")
                 )

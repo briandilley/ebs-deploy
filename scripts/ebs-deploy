@@ -26,6 +26,7 @@ def main():
     parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk', usage='%(prog)s '+command_name+' [options]')
     parser.add_argument('-c', '--config-file', help='Configuration file', default='ebs.config')
     parser.add_argument('-v', '--verbose', help='Enable debug logging', action='store_true')
+    parser.add_argument('-t', '--wait-time', help='timeout for command', required=False, type=int, default=300)
     command = get_command(command_name)
 
     # let commands add arguments
@@ -69,7 +70,7 @@ def main():
         get(config, 'aws.bucket_path',      os.environ.get('AWS_BEANSTALK_BUCKET_NAME_PATH')))
 
     # create helper
-    helper = EbsHelper(aws, app_name=get(config, 'app.app_name'))
+    helper = EbsHelper(aws, app_name=get(config, 'app.app_name'), wait_time_secs=args.wait_time)
 
     # execute the command
     exit(command.execute(helper, config, args))
