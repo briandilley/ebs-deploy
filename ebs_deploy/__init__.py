@@ -363,7 +363,10 @@ class EbsHelper(object):
         """
         envs = self.get_environments()
         for env in envs:
-            if env['Status'] != 'Terminated' and env['CNAME'].lower().startswith(env_cname.lower() + '.'):
+            if env['Status'] != 'Terminated' \
+                and env.has_key('CNAME') \
+                and env['CNAME'] \
+                and env['CNAME'].lower().startswith(env_cname.lower() + '.'):
                 return env['EnvironmentName']
         return None
 

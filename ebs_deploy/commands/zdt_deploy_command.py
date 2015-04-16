@@ -28,6 +28,13 @@ def execute(helper, config, args):
     option_settings = parse_option_settings(env_config.get('option_settings', {}))
     cname_prefix = env_config.get('cname_prefix', None)
 
+    # no zdt for anything but web server
+    tier_type = env_config.get('tier_type', 'WebServer')
+    if tier_type != 'WebServer':
+        raise Exception(
+            "Only able to do zero downtime deployments for "
+            "WebServer tiers, can't do them for %s" % (tier_type, ))
+
     # find existing environment name
     old_env_name = helper.environment_name_for_cname(cname_prefix)
     if old_env_name is None:
@@ -73,7 +80,7 @@ def execute(helper, config, args):
                               option_settings=option_settings,
                               version_label=version_label,
                               tier_name=env_config.get('tier_name'),
-                              tier_type=env_config.get('tier_type'),
+                              tier_type=tier_type,
                               tier_version=env_config.get('tier_version'))
     helper.wait_for_environments(new_env_name, status='Ready', health='Green', include_deleted=False)
 
