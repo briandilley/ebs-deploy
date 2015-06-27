@@ -195,9 +195,10 @@ class AwsCredentials:
     Class for holding AwsCredentials
     """
 
-    def __init__(self, access_key, secret_key, region, bucket, bucket_path):
+    def __init__(self, access_key, secret_key, security_token, region, bucket, bucket_path):
         self.access_key = access_key
         self.secret_key = secret_key
+        self.security_token = security_token
         self.bucket = bucket
         self.region = region
         self.bucket_path = bucket_path
@@ -216,9 +217,13 @@ class EbsHelper(object):
         """
         self.aws = aws
         self.ebs = connect_to_region(aws.region, aws_access_key_id=aws.access_key,
-                                     aws_secret_access_key=aws.secret_key)
-        self.s3 = S3Connection(aws.access_key, aws.secret_key, host=(
-            lambda r: 's3.amazonaws.com' if r == 'us-east-1' else 's3-' + r + '.amazonaws.com')(aws.region))
+                                     aws_secret_access_key=aws.secret_key,
+                                     security_token=aws.security_token)
+        self.s3 = S3Connection(
+            aws_access_key_id=aws.access_key, 
+            aws_secret_access_key=aws.secret_key, 
+            security_token=aws.security_token,
+            host=(lambda r: 's3.amazonaws.com' if r == 'us-east-1' else 's3-' + r + '.amazonaws.com')(aws.region))
         self.app_name = app_name
         self.wait_time_secs = wait_time_secs
 
