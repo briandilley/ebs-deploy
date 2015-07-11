@@ -420,8 +420,20 @@ class EbsHelper(object):
                                                     version_label=version['VersionLabel'])
                 sleep(2)
 
+    def describe_events(self, environment_name, next_token=None, start_time=None):
+        """
+        Describes events from the given environment
+        """
+        events = self.ebs.describe_events(
+            application_name=self.app_name,
+            environment_name=environment_name,
+            next_token=next_token,
+            start_time=start_time)
+
+        return (events['DescribeEventsResponse']['DescribeEventsResult']['Events'], events['DescribeEventsResponse']['DescribeEventsResult']['NextToken'])
+
     def wait_for_environments(self, environment_names, health=None, status=None, version_label=None,
-                              include_deleted=True):
+                              include_deleted=True, use_events=True):
         """
         Waits for an environment to have the given version_label
         and to be in the green state
@@ -445,6 +457,7 @@ class EbsHelper(object):
         out(s)
 
         started = time()
+        seen_events = list()
         while True:
             # bail if they're all good
             if len(environment_names) == 0:
@@ -489,6 +502,13 @@ class EbsHelper(object):
                     environment_names.remove(env_name)
                 else:
                     out(msg + " ... waiting")
+
+                # log events
+                (events, next_token) = helper.describe_events(env_name, start_time=datetime.now())
+                for event in events:
+                    if event not in seen_events:
+                        out("["+event['Severity']+"] "+event['Message'])
+                        seen_events.append(event)
 
             # check the time
             elapsed = time() - started
