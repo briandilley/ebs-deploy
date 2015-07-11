@@ -504,7 +504,7 @@ class EbsHelper(object):
                     out(msg + " ... waiting")
 
                 # log events
-                (events, next_token) = helper.describe_events(env_name, start_time=datetime.now())
+                (events, next_token) = self.describe_events(env_name, start_time=datetime.now())
                 for event in events:
                     if event not in seen_events:
                         out("["+event['Severity']+"] "+event['Message'])
