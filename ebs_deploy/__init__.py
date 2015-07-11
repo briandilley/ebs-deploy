@@ -458,6 +458,12 @@ class EbsHelper(object):
 
         started = time()
         seen_events = list()
+
+        for env_name in environment_names:
+            (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+            for event in events:
+                seen_events.append(event)
+
         while True:
             # bail if they're all good
             if len(environment_names) == 0:
