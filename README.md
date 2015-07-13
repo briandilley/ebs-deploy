@@ -27,6 +27,7 @@ Running ebs-deploy without arguments will list the available commands:
         delete_application
         delete_environment
         deploy
+        describe_events
         dump
         help
         init
@@ -37,6 +38,7 @@ Running ebs-deploy without arguments will list the available commands:
         swap_urls
         update
         update_environments
+        wait_for_environment
         zdt_deploy
 
 
@@ -227,6 +229,8 @@ app:
                 # "deflate.conf" that configures apache to serve
                 # things using mod_deflate (gzip).
                 - deflate.conf:
+                    # permissions of the file
+                    permissions: 0644
                     # the content node is important here
                     content: |
                         <Location />
@@ -244,6 +248,8 @@ app:
                 # follow the "yaml" node under this will be added
                 # to the file
                 - .ebextensions/02-packages.config:
+                    # permissions of the file
+                    permissions: 0777
                     # the yaml node is important here
                     yaml:
                         packages:
@@ -257,6 +263,8 @@ app:
                 # another example of adding a yaml file to the archive
                 # this one tells beanstalk to run some commands on deployment
                 - .ebextensions/03-commands.config:
+                    # permissions of the file
+                    permissions: 0666
                     yaml:
                         commands:
                             00010-timezone:

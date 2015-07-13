@@ -193,7 +193,9 @@ def add_config_files_to_archive(directory, filename, config={}):
                 else:
                     content = tree.get('content', '')
                 out("Adding file " + str(conf) + " to archive " + str(filename))
-                zip_file.writestr(conf, content)
+                file_entry = zipfile.ZipInfo(conf)
+                file_entry.external_attr = tree.get('permissions', 0644) << 16L 
+                zip_file.writestr(file_entry, content)
 
     return filename
 
