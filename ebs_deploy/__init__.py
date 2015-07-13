@@ -78,6 +78,8 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
     if archive:
         archive_file_name = os.path.basename(archive)
 
+    archive_files = get(env_config, 'archive.files', [])
+
     # generate the archive externally
     if get(env_config, 'archive.generate'):
         cmd = get(env_config, 'archive.generate.cmd')
@@ -120,7 +122,6 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
             directory = "."
         includes = get(env_config, 'archive.includes', [])
         excludes = get(env_config, 'archive.excludes', [])
-        archive_files = get(env_config, 'archive.files', [])
 
         def _predicate(f):
             for exclude in excludes:
@@ -135,6 +136,7 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
         archive = create_archive(directory, str(version_label) + ".zip", config=archive_files, ignore_predicate=_predicate)
         archive_file_name = str(version_label) + ".zip"
 
+    add_config_files_to_archive(directory, archive, config=archive_files)
     helper.upload_archive(archive, archive_file_name)
     helper.create_application_version(version_label, archive_file_name)
     return version_label
@@ -145,48 +147,54 @@ def create_archive(directory, filename, config={}, ignore_predicate=None, ignore
     Creates an archive from a directory and returns
     the file that was created.
     """
-    zip = zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_DEFLATED)
-    root_len = len(os.path.abspath(directory))
+    with zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_DEFLATED) as zip_file:
+        root_len = len(os.path.abspath(directory))
 
-    # create it
-    out("Creating archive: " + str(filename))
-    for root, dirs, files in os.walk(directory, followlinks=True):
-        archive_root = os.path.abspath(root)[root_len + 1:]
-        for f in files:
-            fullpath = os.path.join(root, f)
-            archive_name = os.path.join(archive_root, f)
+        # create it
+        out("Creating archive: " + str(filename))
+        for root, dirs, files in os.walk(directory, followlinks=True):
+            archive_root = os.path.abspath(root)[root_len + 1:]
+            for f in files:
+                fullpath = os.path.join(root, f)
+                archive_name = os.path.join(archive_root, f)
 
-            # ignore the file we're creating
-            if filename in fullpath:
-                continue
-
-            # ignored files
-            if ignored_files is not None:
-                for name in ignored_files:
-                    if fullpath.endswith(name):
-                        out("Skipping: " + str(name))
-                        continue
-
-            # do predicate
-            if ignore_predicate is not None:
-                if not ignore_predicate(archive_name):
-                    out("Skipping: " + str(archive_name))
+                # ignore the file we're creating
+                if filename in fullpath:
                     continue
 
-            out("Adding: " + str(archive_name))
-            zip.write(fullpath, archive_name, zipfile.ZIP_DEFLATED)
+                # ignored files
+                if ignored_files is not None:
+                    for name in ignored_files:
+                        if fullpath.endswith(name):
+                            out("Skipping: " + str(name))
+                            continue
 
-    # add config
-    for conf in config:
-        for conf, tree in conf.items():
-            if tree.has_key('yaml'):
-                content = yaml.dump(tree['yaml'], default_flow_style=False)
-            else:
-                content = tree.get('content', '')
-            out("Writing config file for " + str(conf))
-            zip.writestr(conf, content)
+                # do predicate
+                if ignore_predicate is not None:
+                    if not ignore_predicate(archive_name):
+                        out("Skipping: " + str(archive_name))
+                        continue
 
-    zip.close()
+                out("Adding: " + str(archive_name))
+                zip_file.write(fullpath, archive_name, zipfile.ZIP_DEFLATED)
+
+    return filename
+
+
+def add_config_files_to_archive(directory, filename, config={}):
+    """
+    Adds configuration files to an existing archive
+    """
+    with zipfile.ZipFile(filename, 'a') as zip_file:
+        for conf in config:
+            for conf, tree in conf.items():
+                if tree.has_key('yaml'):
+                    content = yaml.dump(tree['yaml'], default_flow_style=False)
+                else:
+                    content = tree.get('content', '')
+                out("Adding file " + str(conf) + " to archive " + str(filename))
+                zip_file.writestr(conf, content)
+
     return filename
 
 
