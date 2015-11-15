@@ -23,7 +23,7 @@ def execute(helper, config, args):
     # create environments
     environment_names = []
     environments_to_wait_for_green = []
-    for env_name, env_config in get(config, 'app.environments').items():
+    for env_name, env_config in list(get(config, 'app.environments').items()):
         environment_names.append(env_name)
         env_config = parse_env_config(config, env_name)
         if not helper.environment_exists(env_name):

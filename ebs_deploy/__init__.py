@@ -23,7 +23,7 @@ def out(message):
 
 def merge_dict(dict1, dict2):
     ret = dict(dict2)
-    for key, val in dict1.items():
+    for key, val in list(dict1.items()):
         val2 = dict2.get(key)
         if val2 is None:
             ret[key] = val
@@ -56,8 +56,8 @@ def parse_option_settings(option_settings):
     Parses option_settings as they are defined in the configuration file
     """
     ret = []
-    for namespace, params in option_settings.items():
-        for key, value in params.items():
+    for namespace, params in list(option_settings.items()):
+        for key, value in list(params.items()):
             ret.append((namespace, key, value))
     return ret
 
@@ -187,14 +187,14 @@ def add_config_files_to_archive(directory, filename, config={}):
     """
     with zipfile.ZipFile(filename, 'a') as zip_file:
         for conf in config:
-            for conf, tree in conf.items():
-                if tree.has_key('yaml'):
+            for conf, tree in list(conf.items()):
+                if 'yaml' in tree:
                     content = yaml.dump(tree['yaml'], default_flow_style=False)
                 else:
                     content = tree.get('content', '')
                 out("Adding file " + str(conf) + " to archive " + str(filename))
                 file_entry = zipfile.ZipInfo(conf)
-                file_entry.external_attr = tree.get('permissions', 0644) << 16L 
+                file_entry.external_attr = tree.get('permissions', 0o644) << 16 
                 zip_file.writestr(file_entry, content)
 
     return filename
@@ -379,7 +379,7 @@ class EbsHelper(object):
         envs = self.get_environments()
         for env in envs:
             if env['Status'] != 'Terminated' \
-                and env.has_key('CNAME') \
+                and 'CNAME' in env \
                 and env['CNAME'] \
                 and env['CNAME'].lower().startswith(env_cname.lower() + '.'):
                 return env['EnvironmentName']
