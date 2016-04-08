@@ -81,6 +81,8 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
     if archive:
         archive_file_name = os.path.basename(archive)
 
+    archive_files = get(env_config, 'archive.files', [])
+
     # generate the archive externally
     if get(env_config, 'archive.generate'):
         cmd = get(env_config, 'archive.generate.cmd')
@@ -123,7 +125,6 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
             directory = "."
         includes = get(env_config, 'archive.includes', [])
         excludes = get(env_config, 'archive.excludes', [])
-        archive_files = get(env_config, 'archive.files', [])
 
         def _predicate(f):
             for exclude in excludes:
@@ -138,6 +139,7 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
         archive = create_archive(directory, str(version_label) + ".zip", config=archive_files, ignore_predicate=_predicate)
         archive_file_name = str(version_label) + ".zip"
 
+    add_config_files_to_archive(directory, archive, config=archive_files)
     helper.upload_archive(archive, archive_file_name)
     helper.create_application_version(version_label, archive_file_name)
     return version_label
@@ -148,48 +150,56 @@ def create_archive(directory, filename, config={}, ignore_predicate=None, ignore
     Creates an archive from a directory and returns
     the file that was created.
     """
-    zip = zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_DEFLATED)
-    root_len = len(os.path.abspath(directory))
+    with zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_DEFLATED) as zip_file:
+        root_len = len(os.path.abspath(directory))
 
-    # create it
-    out("Creating archive: " + str(filename))
-    for root, dirs, files in os.walk(directory, followlinks=True):
-        archive_root = os.path.abspath(root)[root_len + 1:]
-        for f in files:
-            fullpath = os.path.join(root, f)
-            archive_name = os.path.join(archive_root, f)
+        # create it
+        out("Creating archive: " + str(filename))
+        for root, dirs, files in os.walk(directory, followlinks=True):
+            archive_root = os.path.abspath(root)[root_len + 1:]
+            for f in files:
+                fullpath = os.path.join(root, f)
+                archive_name = os.path.join(archive_root, f)
 
-            # ignore the file we're creating
-            if filename in fullpath:
-                continue
-
-            # ignored files
-            if ignored_files is not None:
-                for name in ignored_files:
-                    if fullpath.endswith(name):
-                        out("Skipping: " + str(name))
-                        continue
-
-            # do predicate
-            if ignore_predicate is not None:
-                if not ignore_predicate(archive_name):
-                    out("Skipping: " + str(archive_name))
+                # ignore the file we're creating
+                if filename in fullpath:
                     continue
 
-            out("Adding: " + str(archive_name))
-            zip.write(fullpath, archive_name, zipfile.ZIP_DEFLATED)
+                # ignored files
+                if ignored_files is not None:
+                    for name in ignored_files:
+                        if fullpath.endswith(name):
+                            out("Skipping: " + str(name))
+                            continue
 
-    # add config
-    for conf in config:
-        for conf, tree in conf.items():
-            if tree.has_key('yaml'):
-                content = yaml.dump(tree['yaml'], default_flow_style=False)
-            else:
-                content = tree.get('content', '')
-            out("Writing config file for " + str(conf))
-            zip.writestr(conf, content)
+                # do predicate
+                if ignore_predicate is not None:
+                    if not ignore_predicate(archive_name):
+                        out("Skipping: " + str(archive_name))
+                        continue
 
-    zip.close()
+                out("Adding: " + str(archive_name))
+                zip_file.write(fullpath, archive_name, zipfile.ZIP_DEFLATED)
+
+    return filename
+
+
+def add_config_files_to_archive(directory, filename, config={}):
+    """
+    Adds configuration files to an existing archive
+    """
+    with zipfile.ZipFile(filename, 'a') as zip_file:
+        for conf in config:
+            for conf, tree in conf.items():
+                if tree.has_key('yaml'):
+                    content = yaml.dump(tree['yaml'], default_flow_style=False)
+                else:
+                    content = tree.get('content', '')
+                out("Adding file " + str(conf) + " to archive " + str(filename))
+                file_entry = zipfile.ZipInfo(conf)
+                file_entry.external_attr = tree.get('permissions', 0644) << 16L 
+                zip_file.writestr(file_entry, content)
+
     return filename
 
 
@@ -198,9 +208,10 @@ class AwsCredentials:
     Class for holding AwsCredentials
     """
 
-    def __init__(self, access_key, secret_key, region, bucket, bucket_path):
+    def __init__(self, access_key, secret_key, security_token, region, bucket, bucket_path):
         self.access_key = access_key
         self.secret_key = secret_key
+        self.security_token = security_token
         self.bucket = bucket
         self.region = region
         self.bucket_path = bucket_path
@@ -213,16 +224,21 @@ class EbsHelper(object):
     Class for helping with ebs
     """
 
-    def __init__(self, aws, app_name=None):
+    def __init__(self, aws, wait_time_secs, app_name=None,):
         """
         Creates the EbsHelper
         """
         self.aws = aws
         self.ebs = connect_to_region(aws.region, aws_access_key_id=aws.access_key,
-                                     aws_secret_access_key=aws.secret_key)
-        self.s3 = S3Connection(aws.access_key, aws.secret_key, host=(
-            lambda r: 's3.amazonaws.com' if r == 'us-east-1' else 's3-' + r + '.amazonaws.com')(aws.region))
+                                     aws_secret_access_key=aws.secret_key,
+                                     security_token=aws.security_token)
+        self.s3 = S3Connection(
+            aws_access_key_id=aws.access_key, 
+            aws_secret_access_key=aws.secret_key, 
+            security_token=aws.security_token,
+            host=(lambda r: 's3.amazonaws.com' if r == 'us-east-1' else 's3-' + r + '.amazonaws.com')(aws.region))
         self.app_name = app_name
+        self.wait_time_secs = wait_time_secs
 
     def swap_environment_cnames(self, from_env_name, to_env_name):
         """
@@ -365,7 +381,10 @@ class EbsHelper(object):
         """
         envs = self.get_environments()
         for env in envs:
-            if env['Status'] != 'Terminated' and env['CNAME'].lower().startswith(env_cname.lower() + '.'):
+            if env['Status'] != 'Terminated' \
+                and env.has_key('CNAME') \
+                and env['CNAME'] \
+                and env['CNAME'].lower().startswith(env_cname.lower() + '.'):
                 return env['EnvironmentName']
         return None
 
@@ -375,6 +394,13 @@ class EbsHelper(object):
         """
         out("Deploying " + str(version_label) + " to " + str(environment_name))
         self.ebs.update_environment(environment_name=environment_name, version_label=version_label)
+
+    def get_versions(self):
+        """
+        Returns the versions available
+        """
+        response = self.ebs.describe_application_versions(application_name=self.app_name)
+        return response['DescribeApplicationVersionsResponse']['DescribeApplicationVersionsResult']['ApplicationVersions']
 
     def create_application_version(self, version_label, key):
         """
@@ -421,8 +447,20 @@ class EbsHelper(object):
         else:
             env['RedCount'] = 0
 
+    def describe_events(self, environment_name, next_token=None, start_time=None):
+        """
+        Describes events from the given environment
+        """
+        events = self.ebs.describe_events(
+            application_name=self.app_name,
+            environment_name=environment_name,
+            next_token=next_token,
+            start_time=start_time)
+
+        return (events['DescribeEventsResponse']['DescribeEventsResult']['Events'], events['DescribeEventsResponse']['DescribeEventsResult']['NextToken'])
+
     def wait_for_environments(self, environment_names, health=None, status=None, version_label=None,
-                              include_deleted=True, wait_time_secs=300):
+                              include_deleted=True, use_events=True):
         """
         Waits for an environment to have the given version_label
         and to be in the green state
@@ -446,6 +484,13 @@ class EbsHelper(object):
         out(s)
 
         started = time()
+        seen_events = list()
+
+        for env_name in environment_names:
+            (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+            for event in events:
+                seen_events.append(event)
+
         while True:
             # bail if they're all good
             if len(environment_names) == 0:
@@ -494,9 +539,16 @@ class EbsHelper(object):
                 else:
                     out(msg + " ... waiting")
 
+                # log events
+                (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+                for event in events:
+                    if event not in seen_events:
+                        out("["+event['Severity']+"] "+event['Message'])
+                        seen_events.append(event)
+
             # check the time
             elapsed = time() - started
-            if elapsed > wait_time_secs:
+            if elapsed > self.wait_time_secs:
                 message = "Wait time for environment(s) {environments} to be {health} expired".format(
                     environments=" and ".join(environment_names), health=(health or "Green")
                 )

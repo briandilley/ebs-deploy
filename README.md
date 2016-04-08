@@ -27,15 +27,18 @@ Running ebs-deploy without arguments will list the available commands:
         delete_application
         delete_environment
         deploy
+        describe_events
         dump
         help
         init
         list_environments
         list_solution_stacks
+        list_versions
         rebuild
         swap_urls
         update
         update_environments
+        wait_for_environment
         zdt_deploy
 
 
@@ -85,6 +88,8 @@ For an actively used application or an application where any amount of downtime 
     > ebs-deploy zdt_deploy --environment MyCo-MyApp-Prod
 
 Zero downtime deployment takes a while because it creates an entirely new environment, deploys the new application version to it, swaps the cnames with the currently running environment and then terminates the old environment.
+
+Zero downtime deployments are only available for WebServer tier types, they cannot work for Worker tier types since worker tier types do not have cnames.
 
 ### Swap URLS
 If you need to do zero-downtime deployment, but want to run tests before switching to the new environment, you can deploy to a new environment, run your tests, then swap URLs in a separate step:
@@ -224,6 +229,8 @@ app:
                 # "deflate.conf" that configures apache to serve
                 # things using mod_deflate (gzip).
                 - deflate.conf:
+                    # permissions of the file
+                    permissions: 0644
                     # the content node is important here
                     content: |
                         <Location />
@@ -241,6 +248,8 @@ app:
                 # follow the "yaml" node under this will be added
                 # to the file
                 - .ebextensions/02-packages.config:
+                    # permissions of the file
+                    permissions: 0777
                     # the yaml node is important here
                     yaml:
                         packages:
@@ -254,6 +263,8 @@ app:
                 # another example of adding a yaml file to the archive
                 # this one tells beanstalk to run some commands on deployment
                 - .ebextensions/03-commands.config:
+                    # permissions of the file
+                    permissions: 0666
                     yaml:
                         commands:
                             00010-timezone:

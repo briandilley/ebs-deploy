@@ -11,8 +11,6 @@ def add_arguments(parser):
     parser.add_argument('-a', '--archive', help='Archive file', required=False)
     parser.add_argument('-d', '--directory', help='Directory', required=False)
     parser.add_argument('-l', '--version-label', help='Version label', required=False)
-    parser.add_argument('-s', '--wait-time', help='Seconds to wait for environment to transition to green state, default is 600',
-                                             type=int, required=False, default=600)
     parser.add_argument('-t', '--termination-delay',
                         help='Delay termination of old environment by this number of seconds',
                         type=int, required=False)
@@ -29,6 +27,13 @@ def execute(helper, config, args):
     env_config = parse_env_config(config, args.environment)
     option_settings = parse_option_settings(env_config.get('option_settings', {}))
     cname_prefix = env_config.get('cname_prefix', None)
+
+    # no zdt for anything but web server
+    tier_name = env_config.get('tier_name', 'WebServer')
+    if tier_name != 'WebServer':
+        raise Exception(
+            "Only able to do zero downtime deployments for "
+            "WebServer tiers, can't do them for %s" % (tier_name, ))
 
     # find an available environment name
     out("Determining new environment name...")
@@ -68,12 +73,10 @@ def execute(helper, config, args):
                               description=env_config.get('description', None),
                               option_settings=option_settings,
                               version_label=version_label,
-                              tier_name=env_config.get('tier_name'),
+                              tier_name=tier_name,
                               tier_type=env_config.get('tier_type'),
                               tier_version=env_config.get('tier_version'))
-    wait_time_secs = args.wait_time
-    helper.wait_for_environments(new_env_name, status='Ready', health='Green', include_deleted=False,
-        wait_time_secs=wait_time_secs)
+    helper.wait_for_environments(new_env_name, status='Ready', health='Green', include_deleted=False)
 
     # find existing environment name
     old_env_name = helper.environment_name_for_cname(cname_prefix)
@@ -84,8 +87,7 @@ def execute(helper, config, args):
     # swap C-Names
     out("Swapping environment cnames")
     helper.swap_environment_cnames(old_env_name, new_env_name)
-    helper.wait_for_environments([old_env_name, new_env_name], status='Ready', include_deleted=False,
-        wait_time_secs=wait_time_secs)
+    helper.wait_for_environments([old_env_name, new_env_name], status='Ready', include_deleted=False)
 
     # delete the old environment
     if args.termination_delay:
