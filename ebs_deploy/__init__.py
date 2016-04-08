@@ -438,15 +438,6 @@ class EbsHelper(object):
                                                     version_label=version['VersionLabel'])
                 sleep(2)
 
-    def check_red_count_and_increment_or_fail(self, env):
-        if env.has_key('RedCount'):
-            env['RedCount'] += 1
-            if env['RedCount'] > MAX_RED_SAMPLES:
-                out('Deploy failed')
-                raise Exception('Ready and red')
-        else:
-            env['RedCount'] = 0
-
     def describe_events(self, environment_name, next_token=None, start_time=None):
         """
         Describes events from the given environment
@@ -529,8 +520,15 @@ class EbsHelper(object):
                 if version_label is not None:
                     good_to_go = good_to_go and str(env['VersionLabel']) == version_label
 
+                # allow a certain number of Red samples before failing
                 if env['Status'] == 'Ready' and env['Health'] == 'Red':
-                    self.check_red_count_and_increment_or_fail(env)
+                    if 'RedCount' not in env:
+                        env['RedCount'] = 0
+
+                    env['RedCount'] += 1
+                    if env['RedCount'] > MAX_RED_SAMPLES:
+                        out('Deploy failed')
+                        raise Exception('Ready and red')
 
                 # log it
                 if good_to_go:
