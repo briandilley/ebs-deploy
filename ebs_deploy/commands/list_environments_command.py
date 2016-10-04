@@ -13,4 +13,4 @@ def execute(helper, config, args):
     out("Deployed environments:")
     for env in envs:
         if env['Status'] != 'Terminated':
-            out('\t'+env['EnvironmentName']+' ('+env['Status']+', '+env['CNAME']+')')
+            out('\t'+str(env['EnvironmentName'])+' ('+str(env['Status'])+', '+str(env['CNAME'])+')')

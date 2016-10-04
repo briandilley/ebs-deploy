@@ -19,23 +19,27 @@ Usage of ebs-deploy uses the following pattern:
 
     > ebs-deploy command options
 
-Running ebs-deploy without an arguments will list the available commands:
+Running ebs-deploy without arguments will list the available commands:
 
     > ebs-deploy 
     usage: ebs-deploy command [options | help]
     Where command is one of:
-        list_environments
-        dump
-        delete_environment
-        zdt_deploy
-        list_solution_stacks
         delete_application
+        delete_environment
         deploy
-        update
-        rebuild
+        describe_events
+        dump
+        help
         init
+        list_environments
+        list_solution_stacks
+        list_versions
+        rebuild
+        swap_urls
+        update
         update_environments
-
+        wait_for_environment
+        zdt_deploy
 
 
 Every command requires a configuration file named `ebs.config` to be present in the directory in which the command is run or by passing the `-c` or `--config-file` argument.  Documentation on the format of the configuration file can be found later in this document.  To get help on any of the commands simply run:
@@ -84,6 +88,15 @@ For an actively used application or an application where any amount of downtime 
     > ebs-deploy zdt_deploy --environment MyCo-MyApp-Prod
 
 Zero downtime deployment takes a while because it creates an entirely new environment, deploys the new application version to it, swaps the cnames with the currently running environment and then terminates the old environment.
+
+Zero downtime deployments are only available for WebServer tier types, they cannot work for Worker tier types since worker tier types do not have cnames.
+
+### Swap URLS
+If you need to do zero-downtime deployment, but want to run tests before switching to the new environment, you can deploy to a new environment, run your tests, then swap URLs in a separate step:
+
+    > ebs-deploy swap_urls --old-environment MyCo-MyApp-0 --new-environment MyCo-MyApp-1
+
+This is a relatively fast operation since both environments have already been deployed.
 
 ### Delete the application
 When your application is ready to be decommissioned you can use the delete_application command:
@@ -216,6 +229,8 @@ app:
                 # "deflate.conf" that configures apache to serve
                 # things using mod_deflate (gzip).
                 - deflate.conf:
+                    # permissions of the file
+                    permissions: 0644
                     # the content node is important here
                     content: |
                         <Location />
@@ -233,6 +248,8 @@ app:
                 # follow the "yaml" node under this will be added
                 # to the file
                 - .ebextensions/02-packages.config:
+                    # permissions of the file
+                    permissions: 0777
                     # the yaml node is important here
                     yaml:
                         packages:
@@ -246,6 +263,8 @@ app:
                 # another example of adding a yaml file to the archive
                 # this one tells beanstalk to run some commands on deployment
                 - .ebextensions/03-commands.config:
+                    # permissions of the file
+                    permissions: 0666
                     yaml:
                         commands:
                             00010-timezone:
