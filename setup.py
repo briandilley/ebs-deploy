@@ -4,7 +4,7 @@ setup(
 
     # general meta
     name='ebs-deploy',
-    version='1.9.9',
+    version='1.9.10',
     author='Brian C. Dilley',
     author_email='brian.dilley@gmail.com',
     description='Python based command line tools for managing '
@@ -22,7 +22,8 @@ setup(
     # dependencies
     install_requires=[
         'boto>=2.32.0',
-        'pyyaml>=3.10'
+        'pyyaml>=3.10',
+        'sh>=1.11',
     ],
     # additional files to include
     include_package_data=True,

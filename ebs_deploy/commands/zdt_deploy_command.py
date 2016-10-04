@@ -1,3 +1,5 @@
+import sh
+import shlex
 import time
 from ebs_deploy import out, get, parse_env_config, parse_option_settings, upload_application_archive
 
@@ -6,15 +8,14 @@ def add_arguments(parser):
     """
     adds arguments for the deploy command
     """
-    parser.add_argument('-e', '--environment', help='Environment name', required=True)
-    parser.add_argument('-w', '--dont-wait', help='Skip waiting', action='store_true')
-    parser.add_argument('-a', '--archive', help='Archive file', required=False)
-    parser.add_argument('-d', '--directory', help='Directory', required=False)
-    parser.add_argument('-l', '--version-label', help='Version label', required=False)
-    parser.add_argument('-t', '--termination-delay',
-                        help='Delay termination of old environment by this number of seconds',
-                        type=int, required=False)
-
+    parser.add_argument('-e', '--environment',          help='Environment name', required=True)
+    parser.add_argument('-w', '--dont-wait',            help='Skip waiting', action='store_true')
+    parser.add_argument('-a', '--archive',              help='Archive file', required=False)
+    parser.add_argument('-d', '--directory',            help='Directory', required=False)
+    parser.add_argument('-l', '--version-label',        help='Version label', required=False)
+    parser.add_argument('-t', '--termination-delay',    help='Delay termination of old environment by this number of seconds',
+                                                        type=int, required=False)
+    parser.add_argument('-C', '--check-command',        help='Command to run after environment turns green', required=False)
 
 def execute(helper, config, args):
     """
@@ -83,6 +84,12 @@ def execute(helper, config, args):
     if old_env_name is None:
         raise Exception("Unable to find current environment with cname: " + cname_prefix)
     out("Current environment name is " + old_env_name)
+
+    if args.check_command:
+        command = shlex.split(args.check_command)
+        out("Running check-command {} {}".format(command, new_env_cname))
+        result = sh.Command(command[0])(command[1:] + [new_env_cname])
+        out("Got: " + result)
 
     # swap C-Names
     out("Swapping environment cnames")
