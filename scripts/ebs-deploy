@@ -49,8 +49,8 @@ def main():
     # make sure we have an archive or a directory
     if not args.config_file or not os.path.exists(args.config_file):
         out("Config file not found: "+args.config_file)
-    	parser.print_help()
-    	exit(-1)
+        parser.print_help()
+        exit(-1)
 
     # make sure that if we have a role to assume, that we also have a role name to display
     if (args.role_arn and not args.role_name) or (args.role_name and not args.role_arn):
