@@ -424,7 +424,7 @@ class EbsHelper(object):
         versions = self.ebs.describe_application_versions(application_name=self.app_name)
         versions = versions['DescribeApplicationVersionsResponse']['DescribeApplicationVersionsResult'][
             'ApplicationVersions']
-        versions = sorted(versions, reverse=True, key=functools.cmp_to_key(lambda x, y: cmp(x['DateCreated'], y['DateCreated'])))
+        versions = sorted(versions, reverse=True, key=functools.cmp_to_key(lambda x, y: (x['DateCreated'] > y['DateCreated']) - (x['DateCreated'] < y['DateCreated'])))
 
         # delete versions in use
         for version in versions[versions_to_keep:]:
