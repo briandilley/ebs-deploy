@@ -1,6 +1,6 @@
 # Deployed dependencies
-boto == 2.32.0
 pyyaml == 3.10
+boto==2.45.0
 
 # Development dependencies:
 Nose == 1.1.2
