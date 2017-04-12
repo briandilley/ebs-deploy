@@ -4,7 +4,7 @@ setup(
 
     # general meta
     name='ebs-deploy',
-    version='1.9.11',
+    version='1.9.12',
     author='Brian C. Dilley',
     author_email='brian.dilley@gmail.com',
     description='Python based command line tools for managing '
