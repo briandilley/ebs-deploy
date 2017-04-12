@@ -1,4 +1,4 @@
-from boto.exception import S3ResponseError
+from boto.exception import S3ResponseError, BotoServerError
 from boto.s3.connection import S3Connection
 from boto.beanstalk import connect_to_region
 from boto.s3.key import Key
@@ -482,19 +482,28 @@ class EbsHelper(object):
             for event in events:
                 seen_events.append(event)
 
+        delay = 10
+
         while True:
             # bail if they're all good
             if len(environment_names) == 0:
                 break
 
             # wait
-            sleep(10)
+            sleep(delay)
 
             # # get the env
-            environments = self.ebs.describe_environments(
-                application_name=self.app_name,
-                environment_names=environment_names,
-                include_deleted=include_deleted)
+            try:
+                environments = self.ebs.describe_environments(
+                    application_name=self.app_name,
+                    environment_names=environment_names,
+                    include_deleted=include_deleted)
+            except BotoServerError as e:
+                if not e.error_code == 'Throttling':
+                    raise
+                delay = min(60, int(delay * 1.5))
+                out("Throttling: setting delay to " + str(delay) + " seconds")
+                continue
 
             environments = environments['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']
             if len(environments) <= 0:
