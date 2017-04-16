@@ -87,7 +87,8 @@ def execute(helper, config, args):
     # swap C-Names
     out("Swapping environment cnames")
     helper.swap_environment_cnames(old_env_name, new_env_name)
-    helper.wait_for_environments([old_env_name, new_env_name], status='Ready', include_deleted=False)
+    helper.wait_for_environments([old_env_name, new_env_name], status='Ready', include_deleted=False,
+        wait_time_in_seconds=wait_time_in_seconds)
 
     # delete the old environment
     if args.termination_delay:
