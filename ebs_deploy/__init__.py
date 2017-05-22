@@ -77,6 +77,12 @@ def parse_env_config(config, env_name):
 def upload_application_archive(helper, env_config, archive=None, directory=None, version_label=None):
     if version_label is None:
         version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
+    else:
+        # don't attempt to create an application version which already exists
+        existing_version_labels = [version['VersionLabel'] for version in helper.get_versions()]
+        if version_label in existing_version_labels:
+            return version_label
+
     archive_file_name = None
     if archive:
         archive_file_name = os.path.basename(archive)
