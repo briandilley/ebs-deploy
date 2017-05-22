@@ -553,7 +553,15 @@ class EbsHelper(object):
                     out(msg + " ... waiting")
 
                 # log events
-                (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+                try:
+                    (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+                except BotoServerError as e:
+                    if not e.error_code == 'Throttling':
+                        raise
+                    delay = min(60, int(delay * 1.5))
+                    out("Throttling: setting delay to " + str(delay) + " seconds")
+                    break
+
                 for event in events:
                     if event not in seen_events:
                         out("["+event['Severity']+"] "+event['Message'])
