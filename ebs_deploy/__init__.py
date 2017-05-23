@@ -77,6 +77,12 @@ def parse_env_config(config, env_name):
 def upload_application_archive(helper, env_config, archive=None, directory=None, version_label=None):
     if version_label is None:
         version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
+    else:
+        # don't attempt to create an application version which already exists
+        existing_version_labels = [version['VersionLabel'] for version in helper.get_versions()]
+        if version_label in existing_version_labels:
+            return version_label
+
     archive_file_name = None
     if archive:
         archive_file_name = os.path.basename(archive)
@@ -547,7 +553,15 @@ class EbsHelper(object):
                     out(msg + " ... waiting")
 
                 # log events
-                (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+                try:
+                    (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+                except BotoServerError as e:
+                    if not e.error_code == 'Throttling':
+                        raise
+                    delay = min(60, int(delay * 1.5))
+                    out("Throttling: setting delay to " + str(delay) + " seconds")
+                    break
+
                 for event in events:
                     if event not in seen_events:
                         out("["+event['Severity']+"] "+event['Message'])
