@@ -10,15 +10,15 @@ from ebs_deploy.commands import get_command, usage
 
 
 # the commands
-def main(argv=sys.argv):
+def run_ebs_deploy(argv):
     """
     the main
     """
 
     # bail if we don't have a command
-    if len(argv)<2:
+    if len(argv) < 2:
         usage()
-        exit(-1)
+        return -1
 
     # get the command
     command_name = argv[1]
@@ -27,7 +27,7 @@ def main(argv=sys.argv):
     parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk', usage='%(prog)s '+command_name+' [options]')
     parser.add_argument('-c', '--config-file', help='Configuration file', default='ebs.config')
     parser.add_argument('-v', '--verbose', help='Enable debug logging', action='store_true')
-    parser.add_argument('-lg', '--logging', help='Use Python logging instead of stdout', default=False, action='store_true')
+    parser.add_argument('-lg', '--use-logging', help='Use Python logging instead of stdout', default=False, action='store_true')
     parser.add_argument('-ra', '--role-arn', help='Role ARN to switch to (ie: arn:aws:iam::111111111111:role/RoleName)', required=False)
     parser.add_argument('-rn', '--role-name', help='Set display name for role (If using --role-arn, this is required)', required=False)
     parser.add_argument('-wt', '--wait-time', help='timeout for command', required=False, type=int, default=300)
@@ -42,7 +42,7 @@ def main(argv=sys.argv):
     # check for help
     if len(argv) == 3 and argv[2] == 'help':
         parser.print_help()
-        exit(-1)
+        return -1
 
     # parse arguments
     args = parser.parse_args(argv[2:])
@@ -53,13 +53,13 @@ def main(argv=sys.argv):
     if not args.config_file or not os.path.exists(args.config_file):
         out("Config file not found: "+args.config_file)
         parser.print_help()
-        exit(-1)
+        return -1
 
     # make sure that if we have a role to assume, that we also have a role name to display
     if (args.role_arn and not args.role_name) or (args.role_name and not args.role_arn):
         out("You must use and --role-arn and --role-name together")
         parser.print_help()
-        exit(-1)
+        return -1
 
     # enable logging
     if args.verbose:
@@ -67,7 +67,6 @@ def main(argv=sys.argv):
         set_stream_logger('boto')
 
     # load config
-    #f = open(args.config_file, 'r')
     with open(args.config_file, 'r') as f:
         contents = f.read()
     contents_with_environment_variables_expanded = os.path.expandvars(contents)
@@ -106,8 +105,11 @@ def main(argv=sys.argv):
     helper = EbsHelper(aws, app_name=get(config, 'app.app_name'), wait_time_secs=args.wait_time)
 
     # execute the command
-    exit(command.execute(helper, config, args))
-    return
+    return command.execute(helper, config, args)
+
+
+def main():
+    exit(run_ebs_deploy(sys.argv))
 
 
 # start the madness
