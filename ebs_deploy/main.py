@@ -5,7 +5,7 @@ import yaml
 import sys
 import os
 from boto.sts import STSConnection
-from ebs_deploy import AwsCredentials, EbsHelper, get, out
+from ebs_deploy import AwsCredentials, EbsHelper, get, out, init_logging
 from ebs_deploy.commands import get_command, usage
 
 
@@ -27,6 +27,7 @@ def main(argv=sys.argv):
     parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk', usage='%(prog)s '+command_name+' [options]')
     parser.add_argument('-c', '--config-file', help='Configuration file', default='ebs.config')
     parser.add_argument('-v', '--verbose', help='Enable debug logging', action='store_true')
+    parser.add_argument('-lg', '--logging', help='Use Python logging instead of stdout', default=False, action='store_true')
     parser.add_argument('-ra', '--role-arn', help='Role ARN to switch to (ie: arn:aws:iam::111111111111:role/RoleName)', required=False)
     parser.add_argument('-rn', '--role-name', help='Set display name for role (If using --role-arn, this is required)', required=False)
     parser.add_argument('-wt', '--wait-time', help='timeout for command', required=False, type=int, default=300)
@@ -46,11 +47,13 @@ def main(argv=sys.argv):
     # parse arguments
     args = parser.parse_args(argv[2:])
 
+    init_logging(args.use_logging)
+
     # make sure we have an archive or a directory
     if not args.config_file or not os.path.exists(args.config_file):
         out("Config file not found: "+args.config_file)
-    	parser.print_help()
-    	exit(-1)
+        parser.print_help()
+        exit(-1)
 
     # make sure that if we have a role to assume, that we also have a role name to display
     if (args.role_arn and not args.role_name) or (args.role_name and not args.role_arn):

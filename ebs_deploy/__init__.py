@@ -16,12 +16,28 @@ import re
 MAX_RED_SAMPLES = 20
 
 
-def out(message):
+
+def _stdout(message):
     """
     print alias
     """
     sys.stdout.write(message + "\n")
     sys.stdout.flush()
+
+
+def _logging_out(message):
+    import logging
+
+    logging.getLogger('ebs_deploy').info("%s", message)
+
+
+out = _stdout
+
+
+def init_logging(use_logging=False):
+    global out
+
+    out = _logging_out if use_logging else _stdout
 
 
 def merge_dict(dict1, dict2):
