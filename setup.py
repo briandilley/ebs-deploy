@@ -4,7 +4,7 @@ setup(
 
     # general meta
     name='ebs-deploy',
-    version='1.9.13',
+    version='1.9.14',
     author='Brian C. Dilley',
     author_email='brian.dilley@gmail.com',
     description='Python based command line tools for managing '
@@ -29,7 +29,11 @@ setup(
     include_package_data=True,
 
     # the scripts
-    scripts=['scripts/ebs-deploy'],
+    entry_points={
+        'console_scripts': [
+            'ebs-deploy = ebs_deploy.main:main'
+        ],
+    },
 
     # wut?
     classifiers=['Intended Audience :: Developers']

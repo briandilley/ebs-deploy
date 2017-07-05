@@ -10,18 +10,18 @@ from ebs_deploy.commands import get_command, usage
 
 
 # the commands
-def main():
+def main(argv=sys.argv):
     """
     the main
     """
 
     # bail if we don't have a command
-    if len(sys.argv)<2:
+    if len(argv)<2:
         usage()
         exit(-1)
 
     # get the command
-    command_name = sys.argv[1]
+    command_name = argv[1]
 
     # setup arguments
     parser = argparse.ArgumentParser(description='Deploy to Amazon Beanstalk', usage='%(prog)s '+command_name+' [options]')
@@ -39,12 +39,12 @@ def main():
         pass
 
     # check for help
-    if len(sys.argv) == 3 and sys.argv[2]=='help':
+    if len(argv) == 3 and argv[2] == 'help':
         parser.print_help()
         exit(-1)
 
     # parse arguments
-    args = parser.parse_args(sys.argv[2:])
+    args = parser.parse_args(argv[2:])
 
     # make sure we have an archive or a directory
     if not args.config_file or not os.path.exists(args.config_file):
