@@ -89,12 +89,15 @@ def execute(helper, config, args):
     out("Current environment name is " + old_env_name)
 
     if args.check_command:
-        command = shlex.split(args.check_command) + [new_env_cname]
-        out("Running check-command {}".format(command))
-        rc = sh.Command(command[0])(command[1:], _iter=True)
-        for line in rc:
-            out(line.rstrip())
-        out("Exit Code: {}".format(rc.exit_code))
+        if callable(args.check_command):
+            args.check_command(new_env_cname)
+        elif isinstance(args.check_command, basestring):
+            command = shlex.split(args.check_command) + [new_env_cname]
+            out("Running check-command {}".format(command))
+            rc = sh.Command(command[0])(command[1:], _iter=True)
+            for line in rc:
+                out(line.rstrip())
+            out("Exit Code: {}".format(rc.exit_code))
 
     # swap C-Names
     out("Swapping environment cnames")
