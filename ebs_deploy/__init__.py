@@ -11,33 +11,29 @@ import subprocess
 import sys
 import yaml
 import re
+import logging
 
 
+logger = None
 MAX_RED_SAMPLES = 20
 
 
-
-def _stdout(message):
+def out(message):
     """
     print alias
     """
-    sys.stdout.write(message + "\n")
-    sys.stdout.flush()
-
-
-def _logging_out(message):
-    import logging
-
-    logging.getLogger('ebs_deploy').info("%s", message)
-
-
-out = _stdout
+    if logger:
+        logger.info("%s", message)
+    else:
+        sys.stdout.write(message + "\n")
+        sys.stdout.flush()
 
 
 def init_logging(use_logging=False):
-    global out
+    global logger
 
-    out = _logging_out if use_logging else _stdout
+    if use_logging:
+        logger = logging.getLogger("ebs_deploy")
 
 
 def merge_dict(dict1, dict2):
