@@ -44,7 +44,7 @@ def merge_dict(dict1, dict2):
             ret[key] = val
         elif isinstance(val, dict) and isinstance(val2, dict):
             ret[key] = merge_dict(val, val2)
-        elif isinstance(val, (list)) and isinstance(val2, (list)):
+        elif isinstance(val, (list,)) and isinstance(val2, (list,)):
             ret[key] = val + val2
         else:
             ret[key] = val2
