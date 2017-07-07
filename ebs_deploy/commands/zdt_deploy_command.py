@@ -88,10 +88,12 @@ def execute(helper, config, args):
         raise Exception("Unable to find current environment with cname: " + cname_prefix)
     out("Current environment name is " + old_env_name)
 
+    env_data = helper.environment_data(new_env_name)
+
     if args.check_command:
         if callable(args.check_command):
             out("Running check-command function")
-            args.check_command(new_env_cname)
+            args.check_command(env_data)
             out("check-command passed")
         elif isinstance(args.check_command, basestring):
             command = shlex.split(args.check_command) + [new_env_cname]

@@ -361,6 +361,14 @@ class EbsHelper(object):
                and response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0][
                        'Status'] != 'Terminated'
 
+    def environment_data(self, env_name):
+        """
+        Returns the description for the given environment
+        """
+        response = self.ebs.describe_environments(application_name=self.app_name, environment_names=[env_name],
+                                                  include_deleted=False)
+        return response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0]
+
     def rebuild_environment(self, env_name):
         """
         Rebuilds an environment
