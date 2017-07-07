@@ -4,8 +4,9 @@ import argparse
 import yaml
 import sys
 import os
+import logging
 from boto.sts import STSConnection
-from ebs_deploy import AwsCredentials, EbsHelper, get, out, init_logging
+from ebs_deploy import AwsCredentials, EbsHelper, get, out, init_logging, configure_logging
 from ebs_deploy.commands import get_command, usage
 
 
@@ -120,6 +121,9 @@ def run_ebs_deploy(command, args, parser=None):
 
 def main():
     command, args, parser = parse_args(sys.argv)
+    if args.use_logging:
+        logging.basicConfig()
+        configure_logging(logging.INFO, logging.root.handlers)
     rc = run_ebs_deploy(command, args, parser)
     exit(rc)
 

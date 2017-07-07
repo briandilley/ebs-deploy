@@ -15,6 +15,7 @@ import logging
 
 
 logger = None
+LOGGER_NAME = 'ebs_deploy'
 MAX_RED_SAMPLES = 20
 
 
@@ -33,7 +34,17 @@ def init_logging(use_logging=False):
     global logger
 
     if use_logging:
-        logger = logging.getLogger("ebs_deploy")
+        logger = logging.getLogger(LOGGER_NAME)
+
+
+def configure_logging(level, handlers):
+    l = logging.getLogger(LOGGER_NAME)
+    l.setLevel(level)
+    for h in l.handlers[:]:
+        l.removeHandler(h)
+    for h in handlers:
+        l.addHandler(h)
+    return l
 
 
 def merge_dict(dict1, dict2):
