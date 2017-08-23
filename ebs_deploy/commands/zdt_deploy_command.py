@@ -44,12 +44,12 @@ def execute(helper, config, args):
     # find an available environment name
     out("Determining new environment name...")
     new_env_name = None
-    if not helper.environment_exists(args.environment):
+    if not helper.environment_exists(args.environment, include_deleted=True):
         new_env_name = args.environment
     else:
         for i in xrange(10):
             temp_env_name = args.environment + '-' + str(i)
-            if not helper.environment_exists(temp_env_name):
+            if not helper.environment_exists(temp_env_name, include_deleted=True):
                 new_env_name = temp_env_name
                 break
     if new_env_name is None:
