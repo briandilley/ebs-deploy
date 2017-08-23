@@ -319,12 +319,12 @@ class EbsHelper(object):
                                     tier_name=tier_name,
                                     tier_version=tier_version)
 
-    def environment_exists(self, env_name):
+    def environment_exists(self, env_name, include_deleted=False):
         """
         Returns whether or not the given environment exists
         """
         response = self.ebs.describe_environments(application_name=self.app_name, environment_names=[env_name],
-                                                  include_deleted=False)
+                                                  include_deleted=include_deleted)
         return len(response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']) > 0 \
                and response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0][
                        'Status'] != 'Terminated'
