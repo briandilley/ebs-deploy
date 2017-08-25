@@ -1,4 +1,4 @@
-from boto.exception import S3ResponseError
+from boto.exception import S3ResponseError, BotoServerError
 from boto.s3.connection import S3Connection
 from boto.beanstalk import connect_to_region
 from boto.s3.key import Key
@@ -11,14 +11,40 @@ import subprocess
 import sys
 import yaml
 import re
+import logging
+
+
+logger = None
+LOGGER_NAME = 'ebs_deploy'
+MAX_RED_SAMPLES = 20
 
 
 def out(message):
     """
     print alias
     """
-    sys.stdout.write(message + "\n")
-    sys.stdout.flush()
+    if logger:
+        logger.info("%s", message)
+    else:
+        sys.stdout.write(message + "\n")
+        sys.stdout.flush()
+
+
+def init_logging(use_logging=False):
+    global logger
+
+    if use_logging:
+        logger = logging.getLogger(LOGGER_NAME)
+
+
+def configure_logging(level, handlers):
+    l = logging.getLogger(LOGGER_NAME)
+    l.setLevel(level)
+    for h in l.handlers[:]:
+        l.removeHandler(h)
+    for h in handlers:
+        l.addHandler(h)
+    return l
 
 
 def merge_dict(dict1, dict2):
@@ -29,7 +55,7 @@ def merge_dict(dict1, dict2):
             ret[key] = val
         elif isinstance(val, dict) and isinstance(val2, dict):
             ret[key] = merge_dict(val, val2)
-        elif isinstance(val, (list)) and isinstance(val2, (list)):
+        elif isinstance(val, (list,)) and isinstance(val2, (list,)):
             ret[key] = val + val2
         else:
             ret[key] = val2
@@ -74,6 +100,12 @@ def parse_env_config(config, env_name):
 def upload_application_archive(helper, env_config, archive=None, directory=None, version_label=None):
     if version_label is None:
         version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
+    else:
+        # don't attempt to create an application version which already exists
+        existing_version_labels = [version['VersionLabel'] for version in helper.get_versions()]
+        if version_label in existing_version_labels:
+            return version_label
+
     archive_file_name = None
     if archive:
         archive_file_name = os.path.basename(archive)
@@ -319,15 +351,23 @@ class EbsHelper(object):
                                     tier_name=tier_name,
                                     tier_version=tier_version)
 
-    def environment_exists(self, env_name, include_deleted=False):
+    def environment_exists(self, env_name):
         """
         Returns whether or not the given environment exists
         """
         response = self.ebs.describe_environments(application_name=self.app_name, environment_names=[env_name],
-                                                  include_deleted=include_deleted)
+                                                  include_deleted=False)
         return len(response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']) > 0 \
                and response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0][
                        'Status'] != 'Terminated'
+
+    def environment_data(self, env_name):
+        """
+        Returns the description for the given environment
+        """
+        response = self.ebs.describe_environments(application_name=self.app_name, environment_names=[env_name],
+                                                  include_deleted=False)
+        return response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0]
 
     def rebuild_environment(self, env_name):
         """
@@ -479,19 +519,28 @@ class EbsHelper(object):
             for event in events:
                 seen_events.append(event)
 
+        delay = 10
+
         while True:
             # bail if they're all good
             if len(environment_names) == 0:
                 break
 
             # wait
-            sleep(5)
+            sleep(delay)
 
             # # get the env
-            environments = self.ebs.describe_environments(
-                application_name=self.app_name,
-                environment_names=environment_names,
-                include_deleted=include_deleted)
+            try:
+                environments = self.ebs.describe_environments(
+                    application_name=self.app_name,
+                    environment_names=environment_names,
+                    include_deleted=include_deleted)
+            except BotoServerError as e:
+                if not e.error_code == 'Throttling':
+                    raise
+                delay = min(60, int(delay * 1.5))
+                out("Throttling: setting delay to " + str(delay) + " seconds")
+                continue
 
             environments = environments['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']
             if len(environments) <= 0:
@@ -516,7 +565,17 @@ class EbsHelper(object):
                     good_to_go = good_to_go and str(env['Status']) == status
                 if version_label is not None:
                     good_to_go = good_to_go and str(env['VersionLabel']) == version_label
-                    
+
+                # allow a certain number of Red samples before failing
+                if env['Status'] == 'Ready' and env['Health'] == 'Red':
+                    if 'RedCount' not in env:
+                        env['RedCount'] = 0
+
+                    env['RedCount'] += 1
+                    if env['RedCount'] > MAX_RED_SAMPLES:
+                        out('Deploy failed')
+                        raise Exception('Ready and red')
+
                 # log it
                 if good_to_go:
                     out(msg + " ... done")
@@ -525,7 +584,15 @@ class EbsHelper(object):
                     out(msg + " ... waiting")
 
                 # log events
-                (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+                try:
+                    (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+                except BotoServerError as e:
+                    if not e.error_code == 'Throttling':
+                        raise
+                    delay = min(60, int(delay * 1.5))
+                    out("Throttling: setting delay to " + str(delay) + " seconds")
+                    break
+
                 for event in events:
                     if event not in seen_events:
                         out("["+event['Severity']+"] "+event['Message'])
