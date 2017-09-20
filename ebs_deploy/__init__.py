@@ -1,5 +1,6 @@
 from boto.exception import S3ResponseError, BotoServerError
 from boto.s3.connection import S3Connection
+from boto.ec2.autoscale import AutoScaleConnection
 from boto.beanstalk import connect_to_region
 from boto.s3.key import Key
 
@@ -86,6 +87,21 @@ def parse_option_settings(option_settings):
         for key, value in params.items():
             ret.append((namespace, key, value))
     return ret
+
+
+def override_scaling(option_settings, min_size, max_size):
+    """ takes the merged option_settings and injects custom min/max autoscaling sizes """
+    match_namespace = "aws:autoscaling:asg"
+    match_keys = {"MinSize": min_size, "MaxSize": max_size}
+
+    copied_option_settings = []
+    for (namespace, key, value) in option_settings:
+        new_option = (namespace, key, value)
+        if match_namespace == namespace and key in match_keys:
+            new_option = (namespace, key, match_keys[key])
+        copied_option_settings.append(new_option)
+
+    return copied_option_settings
 
 
 def parse_env_config(config, env_name):
@@ -261,6 +277,9 @@ class EbsHelper(object):
         self.ebs = connect_to_region(aws.region, aws_access_key_id=aws.access_key,
                                      aws_secret_access_key=aws.secret_key,
                                      security_token=aws.security_token)
+        self.autoscale = AutoScaleConnection(aws_access_key_id=aws.access_key,
+                                             aws_secret_access_key=aws.secret_key,
+                                             security_token=aws.security_token)
         self.s3 = S3Connection(
             aws_access_key_id=aws.access_key, 
             aws_secret_access_key=aws.secret_key, 
@@ -361,6 +380,31 @@ class EbsHelper(object):
                and response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0][
                        'Status'] != 'Terminated'
 
+    def environment_resources(self, env_name):
+        """
+        Returns the description for the given environment's resources
+        """
+        resp = self.ebs.describe_environment_resources(environment_name=env_name)
+        return resp['DescribeEnvironmentResourcesResponse']['DescribeEnvironmentResourcesResult']['EnvironmentResources']
+
+    def get_env_sizing_metrics(self, env_name):
+        asg = self.get_asg(env_name)
+        return asg.min_size, asg.max_size, asg.desired_capacity
+
+    def get_asg(self, env_name):
+        asg_name = self.get_asg_name(env_name)
+        asg = self.autoscale.get_all_groups(names=[asg_name])[0]
+        return asg
+
+    def get_asg_name(self, env_name):
+        resources = self.environment_resources(env_name)
+        name = resources["AutoScalingGroups"][0]["Name"]
+        return name
+
+    def set_env_sizing_metrics(self, env_name, min_size, max_size):
+        self.update_environment(env_name, option_settings=[
+            ("aws:autoscaling:asg", "MinSize", min_size), ("aws:autoscaling:asg", "MaxSize", max_size)])
+
     def environment_data(self, env_name):
         """
         Returns the description for the given environment
@@ -412,18 +456,36 @@ class EbsHelper(object):
             tier_name=tier_name,
             tier_version=tier_version)
 
-    def environment_name_for_cname(self, env_cname):
+    def get_previous_environment_for_subdomain(self, env_subdomain):
         """
         Returns an environment name for the given cname
         """
+
+        def sanitize_subdomain(subdomain):
+            return re.sub("[-\d]*$", "", subdomain.lower())
+
+        env_subdomain = sanitize_subdomain(env_subdomain)
+
+        def match_cname(cname):
+            subdomain = cname.split(".")[0]
+            subdomain = sanitize_subdomain(subdomain)
+            return env_subdomain == subdomain
+
+        def match_candidate(env):
+            return env['Status'] != 'Terminated' \
+                    and env.has_key('CNAME') \
+                    and env['CNAME'] \
+                    and match_cname(env['CNAME'])
+
         envs = self.get_environments()
-        for env in envs:
-            if env['Status'] != 'Terminated' \
-                and env.has_key('CNAME') \
-                and env['CNAME'] \
-                and env['CNAME'].lower().startswith(env_cname.lower() + '.'):
-                return env['EnvironmentName']
-        return None
+        candidates = [env for env in envs if match_candidate(env)]
+        candidates.sort(key=lambda env: env["DateUpdated"], reverse=True)
+
+        match = None
+        if candidates:
+            match = candidates[0]["EnvironmentName"]
+
+        return match
 
     def deploy_version(self, environment_name, version_label):
         """

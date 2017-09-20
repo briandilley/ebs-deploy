@@ -1,7 +1,8 @@
 import sh
 import shlex
 import time
-from ebs_deploy import out, get, parse_env_config, parse_option_settings, upload_application_archive
+from ebs_deploy import out, get, parse_env_config, parse_option_settings, upload_application_archive, override_scaling
+from uuid import uuid4
 
 
 def add_arguments(parser):
@@ -18,6 +19,9 @@ def add_arguments(parser):
                         type=int, required=False)
     parser.add_argument('-C', '--check-command',
                         help='Command to run after environment turns green', required=False)
+    parser.add_argument("-s", "--copy-previous-size",
+                        help="Copy the previous cluster's min/max/desired size", required=False,
+                        default=True)
 
 
 def execute(helper, config, args):
@@ -56,15 +60,30 @@ def execute(helper, config, args):
 
     # find an available cname name
     out("Determining new environment cname...")
-    new_env_cname = None
-    for i in xrange(10):
-        temp_cname = cname_prefix + '-' + str(i)
-        if not helper.environment_name_for_cname(temp_cname):
-            new_env_cname = temp_cname
-            break
-    if new_env_cname is None:
-        raise Exception("Unable to determine new environment cname")
+    new_env_cname = cname_prefix + "-" + uuid4().hex[:16]
     out("New environment cname will be " + new_env_cname)
+
+    # find existing environment name
+    old_env_name = helper.get_previous_environment_for_subdomain(cname_prefix)
+
+    min_size = None
+    max_size = None
+    desired_capacity = None
+
+    if old_env_name:
+        min_size, max_size, desired_capacity = helper.get_env_sizing_metrics(old_env_name)
+        out("Retrieved old cluster sizes: MinSize - {}, MaxSize - {}, DesiredCapacity - {}".format(
+            min_size, max_size, desired_capacity))
+
+    should_copy_scaling_sizes = args.copy_previous_size and desired_capacity and max_size and min_size
+
+    if should_copy_scaling_sizes:
+        # We want the new cluster to start up with `desired_capacity` instances,
+        # so set its min_size to that value. Later, we will adjust.
+        option_settings = override_scaling(option_settings, desired_capacity, max_size)
+        out("Overriding new cluster sizes: MinSize - {}, MaxSize - {}".format(
+            desired_capacity, max_size))
+
 
     # upload or build an archive
     version_label = upload_application_archive(
@@ -82,8 +101,6 @@ def execute(helper, config, args):
                               tier_version=env_config.get('tier_version'))
     helper.wait_for_environments(new_env_name, status='Ready', health='Green', include_deleted=False)
 
-    # find existing environment name
-    old_env_name = helper.environment_name_for_cname(cname_prefix)
     if old_env_name is None:
         raise Exception("Unable to find current environment with cname: " + cname_prefix)
     out("Current environment name is " + old_env_name)
@@ -102,6 +119,12 @@ def execute(helper, config, args):
             for line in rc:
                 out(line.rstrip())
             out("Exit Code: {}".format(rc.exit_code))
+
+    # we need to readjust the min_size of the new cluster, because it's currently set to the old cluster's
+    # desired_capacity
+    if should_copy_scaling_sizes and desired_capacity != min_size:
+        helper.set_env_sizing_metrics(new_env_name, min_size, max_size)
+        out("Resizing new cluster MinSize to {}".format(min_size))
 
     # swap C-Names
     out("Swapping environment cnames")
