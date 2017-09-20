@@ -462,14 +462,13 @@ class EbsHelper(object):
         """
 
         def sanitize_subdomain(subdomain):
-            return re.sub("[-\d]*$", "", subdomain.lower())
+            return subdomain.lower()
 
         env_subdomain = sanitize_subdomain(env_subdomain)
 
         def match_cname(cname):
-            subdomain = cname.split(".")[0]
-            subdomain = sanitize_subdomain(subdomain)
-            return env_subdomain == subdomain
+            subdomain = sanitize_subdomain(cname.split(".")[0])
+            return env_subdomain.startswith(subdomain)
 
         def match_candidate(env):
             return env['Status'] != 'Terminated' \

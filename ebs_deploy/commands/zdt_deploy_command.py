@@ -44,23 +44,11 @@ def execute(helper, config, args):
             "WebServer tiers, can't do them for %s" % (tier_name, ))
 
     # find an available environment name
-    out("Determining new environment name...")
-    new_env_name = None
-    if not helper.environment_exists(args.environment):
-        new_env_name = args.environment
-    else:
-        for i in xrange(10):
-            temp_env_name = args.environment + '-' + str(i)
-            if not helper.environment_exists(temp_env_name):
-                new_env_name = temp_env_name
-                break
-    if new_env_name is None:
-        raise Exception("Unable to determine new environment name")
+    new_env_name = args.environment + '-' + uuid4().hex[:8]
     out("New environment name will be " + new_env_name)
 
     # find an available cname name
-    out("Determining new environment cname...")
-    new_env_cname = cname_prefix + "-" + uuid4().hex[:16]
+    new_env_cname = cname_prefix + "-" + uuid4().hex[:8]
     out("New environment cname will be " + new_env_cname)
 
     # find existing environment name
