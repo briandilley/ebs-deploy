@@ -472,8 +472,7 @@ class EbsHelper(object):
 
         def match_candidate(env):
             return env['Status'] != 'Terminated' \
-                    and env.has_key('CNAME') \
-                    and env['CNAME'] \
+                    and env.get('CNAME') \
                     and match_cname(env['CNAME'])
 
         envs = self.get_environments()
