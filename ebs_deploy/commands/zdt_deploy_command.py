@@ -23,7 +23,6 @@ def add_arguments(parser):
                         help="Copy the previous cluster's min/max/desired size", required=False,
                         default=True)
 
-
 def execute(helper, config, args):
     """
     Deploys to an environment
