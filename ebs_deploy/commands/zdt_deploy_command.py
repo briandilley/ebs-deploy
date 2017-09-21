@@ -60,8 +60,8 @@ def execute(helper, config, args):
 
     if old_env_name:
         min_size, max_size, desired_capacity = helper.get_env_sizing_metrics(old_env_name)
-        out("Retrieved old cluster sizes: MinSize - {}, MaxSize - {}, DesiredCapacity - {}".format(
-            min_size, max_size, desired_capacity))
+        out("Retrieved old cluster sizes from {}: MinSize - {}, MaxSize - {}, DesiredCapacity - {}".format(
+            old_env_name, min_size, max_size, desired_capacity))
 
     should_copy_scaling_sizes = args.copy_previous_size and desired_capacity and max_size and min_size
 
