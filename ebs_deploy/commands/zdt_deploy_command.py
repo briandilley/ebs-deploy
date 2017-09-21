@@ -113,6 +113,7 @@ def execute(helper, config, args):
     if should_copy_scaling_sizes and desired_capacity != min_size:
         helper.set_env_sizing_metrics(new_env_name, min_size, max_size)
         out("Resizing new cluster MinSize to {}".format(min_size))
+        helper.wait_for_environments(new_env_name, status='Ready', health='Green', include_deleted=False)
 
     # swap C-Names
     out("Swapping environment cnames")
