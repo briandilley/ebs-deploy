@@ -468,7 +468,7 @@ class EbsHelper(object):
 
         def match_cname(cname):
             subdomain = sanitize_subdomain(cname.split(".")[0])
-            return subdomain.startswith(env_subdomain)
+            return subdomain == env_subdomain
 
         def match_candidate(env):
             return env['Status'] != 'Terminated' \
@@ -477,7 +477,6 @@ class EbsHelper(object):
 
         envs = self.get_environments()
         candidates = [env for env in envs if match_candidate(env)]
-        candidates.sort(key=lambda env: env["DateUpdated"], reverse=True)
 
         match = None
         if candidates:
