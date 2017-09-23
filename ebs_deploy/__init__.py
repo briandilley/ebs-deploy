@@ -1,5 +1,6 @@
-from boto.exception import S3ResponseError
+from boto.exception import S3ResponseError, BotoServerError
 from boto.s3.connection import S3Connection
+from boto.ec2.autoscale import AutoScaleConnection
 from boto.beanstalk import connect_to_region
 from boto.s3.key import Key
 
@@ -11,14 +12,40 @@ import subprocess
 import sys
 import yaml
 import re
+import logging
+
+
+logger = None
+LOGGER_NAME = 'ebs_deploy'
+MAX_RED_SAMPLES = 20
 
 
 def out(message):
     """
     print alias
     """
-    sys.stdout.write(message + "\n")
-    sys.stdout.flush()
+    if logger:
+        logger.info("%s", message)
+    else:
+        sys.stdout.write(message + "\n")
+        sys.stdout.flush()
+
+
+def init_logging(use_logging=False):
+    global logger
+
+    if use_logging:
+        logger = logging.getLogger(LOGGER_NAME)
+
+
+def configure_logging(level, handlers):
+    l = logging.getLogger(LOGGER_NAME)
+    l.setLevel(level)
+    for h in l.handlers[:]:
+        l.removeHandler(h)
+    for h in handlers:
+        l.addHandler(h)
+    return l
 
 
 def merge_dict(dict1, dict2):
@@ -29,7 +56,7 @@ def merge_dict(dict1, dict2):
             ret[key] = val
         elif isinstance(val, dict) and isinstance(val2, dict):
             ret[key] = merge_dict(val, val2)
-        elif isinstance(val, (list)) and isinstance(val2, (list)):
+        elif isinstance(val, (list,)) and isinstance(val2, (list,)):
             ret[key] = val + val2
         else:
             ret[key] = val2
@@ -62,6 +89,21 @@ def parse_option_settings(option_settings):
     return ret
 
 
+def override_scaling(option_settings, min_size, max_size):
+    """ takes the merged option_settings and injects custom min/max autoscaling sizes """
+    match_namespace = "aws:autoscaling:asg"
+    match_keys = {"MinSize": min_size, "MaxSize": max_size}
+
+    copied_option_settings = []
+    for (namespace, key, value) in option_settings:
+        new_option = (namespace, key, value)
+        if match_namespace == namespace and key in match_keys:
+            new_option = (namespace, key, match_keys[key])
+        copied_option_settings.append(new_option)
+
+    return copied_option_settings
+
+
 def parse_env_config(config, env_name):
     """
     Parses an environment config
@@ -74,6 +116,12 @@ def parse_env_config(config, env_name):
 def upload_application_archive(helper, env_config, archive=None, directory=None, version_label=None):
     if version_label is None:
         version_label = datetime.now().strftime('%Y%m%d_%H%M%S')
+    else:
+        # don't attempt to create an application version which already exists
+        existing_version_labels = [version['VersionLabel'] for version in helper.get_versions()]
+        if version_label in existing_version_labels:
+            return version_label
+
     archive_file_name = None
     if archive:
         archive_file_name = os.path.basename(archive)
@@ -229,6 +277,9 @@ class EbsHelper(object):
         self.ebs = connect_to_region(aws.region, aws_access_key_id=aws.access_key,
                                      aws_secret_access_key=aws.secret_key,
                                      security_token=aws.security_token)
+        self.autoscale = AutoScaleConnection(aws_access_key_id=aws.access_key,
+                                             aws_secret_access_key=aws.secret_key,
+                                             security_token=aws.security_token)
         self.s3 = S3Connection(
             aws_access_key_id=aws.access_key, 
             aws_secret_access_key=aws.secret_key, 
@@ -319,15 +370,48 @@ class EbsHelper(object):
                                     tier_name=tier_name,
                                     tier_version=tier_version)
 
-    def environment_exists(self, env_name):
+    def environment_exists(self, env_name, include_deleted=False):
         """
         Returns whether or not the given environment exists
         """
         response = self.ebs.describe_environments(application_name=self.app_name, environment_names=[env_name],
-                                                  include_deleted=False)
+                                                  include_deleted=include_deleted)
         return len(response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']) > 0 \
                and response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0][
                        'Status'] != 'Terminated'
+
+    def environment_resources(self, env_name):
+        """
+        Returns the description for the given environment's resources
+        """
+        resp = self.ebs.describe_environment_resources(environment_name=env_name)
+        return resp['DescribeEnvironmentResourcesResponse']['DescribeEnvironmentResourcesResult']['EnvironmentResources']
+
+    def get_env_sizing_metrics(self, env_name):
+        asg = self.get_asg(env_name)
+        return asg.min_size, asg.max_size, asg.desired_capacity
+
+    def get_asg(self, env_name):
+        asg_name = self.get_asg_name(env_name)
+        asg = self.autoscale.get_all_groups(names=[asg_name])[0]
+        return asg
+
+    def get_asg_name(self, env_name):
+        resources = self.environment_resources(env_name)
+        name = resources["AutoScalingGroups"][0]["Name"]
+        return name
+
+    def set_env_sizing_metrics(self, env_name, min_size, max_size):
+        self.update_environment(env_name, option_settings=[
+            ("aws:autoscaling:asg", "MinSize", min_size), ("aws:autoscaling:asg", "MaxSize", max_size)])
+
+    def environment_data(self, env_name):
+        """
+        Returns the description for the given environment
+        """
+        response = self.ebs.describe_environments(application_name=self.app_name, environment_names=[env_name],
+                                                  include_deleted=False)
+        return response['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments'][0]
 
     def rebuild_environment(self, env_name):
         """
@@ -372,18 +456,33 @@ class EbsHelper(object):
             tier_name=tier_name,
             tier_version=tier_version)
 
-    def environment_name_for_cname(self, env_cname):
+    def get_previous_environment_for_subdomain(self, env_subdomain):
         """
         Returns an environment name for the given cname
         """
+
+        def sanitize_subdomain(subdomain):
+            return subdomain.lower()
+
+        env_subdomain = sanitize_subdomain(env_subdomain)
+
+        def match_cname(cname):
+            subdomain = sanitize_subdomain(cname.split(".")[0])
+            return subdomain == env_subdomain
+
+        def match_candidate(env):
+            return env['Status'] != 'Terminated' \
+                    and env.get('CNAME') \
+                    and match_cname(env['CNAME'])
+
         envs = self.get_environments()
-        for env in envs:
-            if env['Status'] != 'Terminated' \
-                and env.has_key('CNAME') \
-                and env['CNAME'] \
-                and env['CNAME'].lower().startswith(env_cname.lower() + '.'):
-                return env['EnvironmentName']
-        return None
+        candidates = [env for env in envs if match_candidate(env)]
+
+        match = None
+        if candidates:
+            match = candidates[0]["EnvironmentName"]
+
+        return match
 
     def deploy_version(self, environment_name, version_label):
         """
@@ -479,19 +578,28 @@ class EbsHelper(object):
             for event in events:
                 seen_events.append(event)
 
+        delay = 10
+
         while True:
             # bail if they're all good
             if len(environment_names) == 0:
                 break
 
             # wait
-            sleep(5)
+            sleep(delay)
 
             # # get the env
-            environments = self.ebs.describe_environments(
-                application_name=self.app_name,
-                environment_names=environment_names,
-                include_deleted=include_deleted)
+            try:
+                environments = self.ebs.describe_environments(
+                    application_name=self.app_name,
+                    environment_names=environment_names,
+                    include_deleted=include_deleted)
+            except BotoServerError as e:
+                if not e.error_code == 'Throttling':
+                    raise
+                delay = min(60, int(delay * 1.5))
+                out("Throttling: setting delay to " + str(delay) + " seconds")
+                continue
 
             environments = environments['DescribeEnvironmentsResponse']['DescribeEnvironmentsResult']['Environments']
             if len(environments) <= 0:
@@ -516,7 +624,17 @@ class EbsHelper(object):
                     good_to_go = good_to_go and str(env['Status']) == status
                 if version_label is not None:
                     good_to_go = good_to_go and str(env['VersionLabel']) == version_label
-                    
+
+                # allow a certain number of Red samples before failing
+                if env['Status'] == 'Ready' and env['Health'] == 'Red':
+                    if 'RedCount' not in env:
+                        env['RedCount'] = 0
+
+                    env['RedCount'] += 1
+                    if env['RedCount'] > MAX_RED_SAMPLES:
+                        out('Deploy failed')
+                        raise Exception('Ready and red')
+
                 # log it
                 if good_to_go:
                     out(msg + " ... done")
@@ -525,7 +643,15 @@ class EbsHelper(object):
                     out(msg + " ... waiting")
 
                 # log events
-                (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+                try:
+                    (events, next_token) = self.describe_events(env_name, start_time=datetime.now().isoformat())
+                except BotoServerError as e:
+                    if not e.error_code == 'Throttling':
+                        raise
+                    delay = min(60, int(delay * 1.5))
+                    out("Throttling: setting delay to " + str(delay) + " seconds")
+                    break
+
                 for event in events:
                     if event not in seen_events:
                         out("["+event['Severity']+"] "+event['Message'])
