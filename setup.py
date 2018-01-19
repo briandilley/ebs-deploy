@@ -4,7 +4,7 @@ setup(
 
     # general meta
     name='ebs-deploy',
-    version='2.0.0',
+    version='2.0.1',
     author='Brian C. Dilley (Python 3 fixes by Erik Wallentinsen)',
     author_email='brian.dilley@gmail.com',
     description='Python based command line tools for managing '
