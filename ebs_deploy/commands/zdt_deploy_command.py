@@ -41,7 +41,7 @@ def execute(helper, config, args):
     if not helper.environment_exists(args.environment):
         new_env_name = args.environment
     else:
-        for i in xrange(10):
+        for i in range(10):
             temp_env_name = args.environment + '-' + str(i)
             if not helper.environment_exists(temp_env_name):
                 new_env_name = temp_env_name
@@ -53,7 +53,7 @@ def execute(helper, config, args):
     # find an available cname name
     out("Determining new environment cname...")
     new_env_cname = None
-    for i in xrange(10):
+    for i in range(10):
         temp_cname = cname_prefix + '-' + str(i)
         if not helper.environment_name_for_cname(temp_cname):
             new_env_cname = temp_cname

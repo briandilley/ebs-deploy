@@ -7,7 +7,7 @@ def execute(helper, config, args):
     """
     envs = config.get('app', {}).get('environments', [])
     out("Parsed environments:")
-    for name, conf in envs.items():
+    for name, conf in list(envs.items()):
         out('\t'+name)
     envs = helper.get_environments()
     out("Deployed environments:")

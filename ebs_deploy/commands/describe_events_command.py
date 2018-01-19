@@ -19,4 +19,4 @@ def execute(helper, config, args):
 
     # swap C-Names
     for event in events:
-        print("["+event['Severity']+"] "+event['Message'])
+        print(("["+event['Severity']+"] "+event['Message']))

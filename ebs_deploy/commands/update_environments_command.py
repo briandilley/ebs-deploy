@@ -17,7 +17,7 @@ def execute(helper, config, args):
         for env_name in args.environment:
             environments.append(env_name)
     else:
-        for env_name, env_config in get(config, 'app.environments').items():
+        for env_name, env_config in list(get(config, 'app.environments').items()):
             environments.append(env_name)
 
     wait_environments = []
