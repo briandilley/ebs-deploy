@@ -95,7 +95,7 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
             pass
         result = subprocess.call(cmd, shell=use_shell)
         if result != exit_code:
-            raise Exception('Generate command execited with code %s (expected %s)' % (result, exit_code))
+            raise Exception('Generate command exited with code %s (expected %s)' % (result, exit_code))
 
         if output_file and os.path.exists(output_file):
             archive_file_name = os.path.basename(output_file)
