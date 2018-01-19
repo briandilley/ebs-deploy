@@ -350,7 +350,10 @@ app:
 
 ```
 
-License
+## Pyhon 3
+Thanks Erik Wallentinsen for the Python 3 fixes
+
+## License
 -
 MIT
 
