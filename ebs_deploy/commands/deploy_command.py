@@ -28,7 +28,7 @@ def execute(helper, config, args):
         directory=args.directory, version_label=version_label)
 
     import datetime
-    start_time = datetime.datetime.utcnow().isoformat()
+    start_time = datetime.datetime.utcnow().isoformat() + 'Z'
     # deploy it
     helper.deploy_version(env_name, version_label)
 
