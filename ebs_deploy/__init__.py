@@ -13,6 +13,9 @@ import yaml
 import re
 
 
+MAX_RED_SAMPLES = 20
+
+
 def out(message):
     """
     print alias
@@ -485,7 +488,7 @@ class EbsHelper(object):
                 break
 
             # wait
-            sleep(5)
+            sleep(10)
 
             # # get the env
             environments = self.ebs.describe_environments(
@@ -516,7 +519,17 @@ class EbsHelper(object):
                     good_to_go = good_to_go and str(env['Status']) == status
                 if version_label is not None:
                     good_to_go = good_to_go and str(env['VersionLabel']) == version_label
-                    
+
+                # allow a certain number of Red samples before failing
+                if env['Status'] == 'Ready' and env['Health'] == 'Red':
+                    if 'RedCount' not in env:
+                        env['RedCount'] = 0
+
+                    env['RedCount'] += 1
+                    if env['RedCount'] > MAX_RED_SAMPLES:
+                        out('Deploy failed')
+                        raise Exception('Ready and red')
+
                 # log it
                 if good_to_go:
                     out(msg + " ... done")
