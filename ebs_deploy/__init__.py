@@ -103,6 +103,8 @@ def upload_application_archive(helper, env_config, archive=None, directory=None,
 
         if output_file and os.path.exists(output_file):
             archive_file_name = os.path.basename(output_file)
+            directory = os.path.dirname(output_file)
+            archive = output_file
         else:
             for root, dirs, files in os.walk(".", followlinks=True):
                 for f in files:
