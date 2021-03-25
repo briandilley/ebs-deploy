@@ -1,5 +1,5 @@
 # Deployed dependencies
-pyyaml == 5.1
+pyyaml == 5.4
 boto==2.45.0
 
 # Development dependencies:
